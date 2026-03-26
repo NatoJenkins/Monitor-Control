@@ -1,14 +1,14 @@
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 1 execution started
+`CHECKPOINT` — Phase 1 Plan 03 awaiting hardware verification (Task 3)
 
 ## Current Phase
 Phase 1 — Host Infrastructure + IPC Pipeline
 Current Plan: 3 / 3
 
 ## Progress
-[######----] 2/3 plans complete in Phase 1
+[##########] 3/3 plans complete in Phase 1 (awaiting hardware verify)
 
 ## Milestone
 v1.0 — initial release
@@ -17,13 +17,13 @@ v1.0 — initial release
 (none)
 
 ## Last Action
-2026-03-26 — Completed Phase 1 Plan 02: ClipCursor enforcement with WTS session-unlock and WM_DISPLAYCHANGE auto-recovery via Win32MessageFilter (HOST-04)
+2026-03-26 — Completed Phase 1 Plan 03 (Tasks 1-2): Full IPC pipeline — ProcessManager, QueueDrainTimer, Compositor, DummyWidget wired into host/main.py. Awaiting hardware verification.
 
 ## Stopped At
-Completed 01-02-PLAN.md
+Checkpoint: 01-03 Task 3 — hardware verification of complete Phase 1 pipeline
 
 ## Next Action
-Execute `01-03-PLAN.md` — ProcessManager and QueueDrainTimer (IPC pipeline)
+User runs `python -m host.main` and verifies 5 success criteria. On approval, Phase 1 complete; begin Phase 2.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -43,6 +43,10 @@ Execute `01-03-PLAN.md` — ProcessManager and QueueDrainTimer (IPC pipeline)
 5. **Qt QRect.right() off-by-one** — compute_allowed_rect uses left()+width() and top()+height() instead of right()/bottom() because Qt QRect.right() returns left+width-1. Prevents 1-pixel gap at cursor boundary. (01-02)
 6. **b"windows_generic_MSG" bytes literal required** — nativeEventFilter event_type on Windows is bytes, not str. Using str would silently never match, breaking all native MSG interception. (01-02)
 7. **Win32MessageFilter GC prevention** — Filter stored as window._msg_filter; without a Python-level strong reference, GC can collect the object while QApplication holds only a C++ pointer. (01-02)
+8. **QueueDrainTimer schedule_repaint() once per drain cycle** — Called after full drain loop, not inside per-queue loop, letting Qt coalesce repaints into a single paintEvent. (01-03)
+9. **Compositor owned by HostWindow** — Stored as window.compositor; paintEvent delegates directly. ProcessManager and drain timer stored as window._pm / window._drain_timer to prevent GC. (01-03)
+10. **ProcessManager deadline drain** — Drain loop uses 2s deadline budget before join, not single get_nowait, to flush burst frames and prevent feeder thread deadlock. (01-03)
+11. **DummyWidget silent drop on queue.Full** — Backpressure handled by frame dropping (not stalling subprocess); host drain rate matches push rate at 50ms. (01-03)
 
 ## Blockers
 None
@@ -58,3 +62,4 @@ None
 |-------|------|-------------|-------|-------|
 | 01 | 01 | 248 | 2/2 | 15 |
 | 01 | 02 | 124 | 2/2 | 3 |
+| 01 | 03 | 226 | 2/3 | 13 |

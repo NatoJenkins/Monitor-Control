@@ -11,16 +11,16 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 
 - [x] **HOST-01**: Host app claims Display 3 as a borderless, always-on-top PyQt6 window at 1920x515, identified by physical pixel dimensions (not screen index), positioned at the correct virtual desktop origin
 - [x] **HOST-02**: Host window flags (FramelessWindowHint, WindowStaysOnTopHint, Tool) are set in a single call before `show()` so the window never appears in the taskbar and stays on top after Alt+Tab and after a fullscreen app launches
-- [ ] **HOST-03**: Host composites widget slots via QPainter in a single `paintEvent`; no per-widget top-level windows exist; rendering is flicker-free with no visible tearing
+- [x] **HOST-03**: Host composites widget slots via QPainter in a single `paintEvent`; no per-widget top-level windows exist; rendering is flicker-free with no visible tearing
 - [x] **HOST-04**: Windows `ClipCursor()` is applied at startup to block the cursor from entering Display 3, and is automatically re-applied after session lock/unlock, sleep/wake, and WM_DISPLAYCHANGE events
 - [x] **HOST-05**: All host entry points are guarded with `if __name__ == "__main__":` so no recursive subprocess spawning occurs on Windows spawn start method
 
 ### IPC Pipeline
 
-- [ ] **IPC-01**: Widget subprocesses push frame data to the host exclusively via `multiprocessing.Queue` using non-blocking `put(block=False)`; they never import PyQt6
-- [ ] **IPC-02**: A `QueueDrainTimer` fires every 50 ms in the Qt main thread, draining all widget queues via `get_nowait()`, without blocking the event loop
-- [ ] **IPC-03**: `ProcessManager` spawns, monitors, and terminates widget processes; it drains each widget's queue fully before calling `process.join()` on stop, with a `proc.kill()` fallback after a 5-second timeout
-- [ ] **IPC-04**: A dummy widget (static colored rectangle pushed via queue) validates the complete host pipeline end-to-end before any real widget is built
+- [x] **IPC-01**: Widget subprocesses push frame data to the host exclusively via `multiprocessing.Queue` using non-blocking `put(block=False)`; they never import PyQt6
+- [x] **IPC-02**: A `QueueDrainTimer` fires every 50 ms in the Qt main thread, draining all widget queues via `get_nowait()`, without blocking the event loop
+- [x] **IPC-03**: `ProcessManager` spawns, monitors, and terminates widget processes; it drains each widget's queue fully before calling `process.join()` on stop, with a `proc.kill()` fallback after a 5-second timeout
+- [x] **IPC-04**: A dummy widget (static colored rectangle pushed via queue) validates the complete host pipeline end-to-end before any real widget is built
 
 ### Config System
 
@@ -103,13 +103,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | HOST-01 | Phase 1 | Complete |
 | HOST-02 | Phase 1 | Complete |
-| HOST-03 | Phase 1 | Pending |
+| HOST-03 | Phase 1 | Complete |
 | HOST-04 | Phase 1 | Complete |
 | HOST-05 | Phase 1 | Complete |
-| IPC-01 | Phase 1 | Pending |
-| IPC-02 | Phase 1 | Pending |
-| IPC-03 | Phase 1 | Pending |
-| IPC-04 | Phase 1 | Pending |
+| IPC-01 | Phase 1 | Complete |
+| IPC-02 | Phase 1 | Complete |
+| IPC-03 | Phase 1 | Complete |
+| IPC-04 | Phase 1 | Complete |
 | CFG-01 | Phase 2 | Pending |
 | CFG-02 | Phase 2 | Pending |
 | CFG-03 | Phase 2 | Pending |
