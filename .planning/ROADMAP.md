@@ -38,12 +38,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Stopping the dummy widget via a config stub causes no hang in `process.join()`; starting the host with no guard produces no extra Python processes in Task Manager
   5. Killing the dummy widget process externally (Task Manager) is detected by the drain timer within one drain cycle; the host does not crash
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Host window, display targeting, window flags, DPI-correct placement
-- [ ] 01-02: ClipCursor enforcement with WTS session notification recovery
-- [ ] 01-03: ProcessManager, QueueDrainTimer, Compositor, dummy widget end-to-end
+- [ ] 01-01-PLAN.md — Host window, display targeting, window flags, DPI-correct placement, project skeleton + test infrastructure
+- [ ] 01-02-PLAN.md — ClipCursor enforcement with WTS session notification recovery
+- [ ] 01-03-PLAN.md — ProcessManager, QueueDrainTimer, Compositor, dummy widget end-to-end + hardware verification
 
 ### Phase 2: Config System + Control Panel
 **Goal**: `config.json` is the single source of truth for layout and widget settings; the host watches it reliably across atomic saves; the control panel is the only configuration surface
@@ -125,11 +125,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Host Infrastructure + Pipeline | 0/3 | Not started | - |
+| 1. Host Infrastructure + Pipeline | 0/3 | Planned | - |
 | 2. Config System + Control Panel | 0/2 | Not started | - |
 | 3. Pomodoro + Calendar Widgets | 0/2 | Not started | - |
 | 4. Notification Interceptor | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-26 after initial definition*
+*Last updated: 2026-03-26 after Phase 1 planning*
