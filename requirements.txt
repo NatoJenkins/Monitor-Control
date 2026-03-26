@@ -1,0 +1,4 @@
+PyQt6==6.10.2
+pywin32==311
+pytest>=8.0
+pytest-mock>=3.12
