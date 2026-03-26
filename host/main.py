@@ -2,7 +2,12 @@ import sys
 import multiprocessing
 from PyQt6.QtWidgets import QApplication
 from host.window import HostWindow
-from host.win32_utils import find_target_screen, place_on_screen
+from host.win32_utils import (
+    find_target_screen, place_on_screen,
+    apply_clip_cursor, compute_allowed_rect,
+    register_session_notifications,
+    Win32MessageFilter,
+)
 
 
 def main():
@@ -18,8 +23,26 @@ def main():
 
     place_on_screen(window, target)
 
-    # ClipCursor, WTS registration, ProcessManager, QueueDrainTimer
-    # wired in plans 01-02 and 01-03
+    # --- ClipCursor enforcement (HOST-04) ---
+    # Compute allowed cursor region: all screens EXCEPT Display 3
+    allowed = compute_allowed_rect(target, app.screens())
+    apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
+
+    # Register for WTS session notifications to re-apply ClipCursor after unlock
+    hwnd = int(window.winId())
+    register_session_notifications(hwnd)
+
+    # Install native event filter for WM_WTSSESSION_CHANGE + WM_DISPLAYCHANGE
+    def reapply_clip():
+        apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
+
+    msg_filter = Win32MessageFilter(on_clip_needed=reapply_clip)
+    app.installNativeEventFilter(msg_filter)
+
+    # Prevent garbage collection of the filter during app lifetime
+    window._msg_filter = msg_filter
+
+    # ProcessManager, QueueDrainTimer wired in plan 01-03
 
     sys.exit(app.exec())
 
