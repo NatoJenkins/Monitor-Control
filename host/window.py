@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPainter, QColor
+from host.compositor import Compositor
 
 
 class HostWindow(QWidget):
@@ -12,10 +13,10 @@ class HostWindow(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
-        self._frames = {}  # widget_id -> FrameData (populated by compositor in plan 01-03)
+        self.compositor = Compositor(self)
 
     def paintEvent(self, event):
-        # Minimal implementation — black background; compositor logic added in plan 01-03
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#000000"))
+        painter.fillRect(self.rect(), QColor("#000000"))  # background
+        self.compositor.paint(painter)
         painter.end()
