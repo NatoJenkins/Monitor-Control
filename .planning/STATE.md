@@ -5,10 +5,10 @@
 
 ## Current Phase
 Phase 1 — Host Infrastructure + IPC Pipeline
-Current Plan: 2 / 3
+Current Plan: 3 / 3
 
 ## Progress
-[###-------] 1/3 plans complete in Phase 1
+[######----] 2/3 plans complete in Phase 1
 
 ## Milestone
 v1.0 — initial release
@@ -17,13 +17,13 @@ v1.0 — initial release
 (none)
 
 ## Last Action
-2026-03-26 — Completed Phase 1 Plan 01: host window foundation (HostWindow, display targeting, window flags, __main__ guard, test infrastructure)
+2026-03-26 — Completed Phase 1 Plan 02: ClipCursor enforcement with WTS session-unlock and WM_DISPLAYCHANGE auto-recovery via Win32MessageFilter (HOST-04)
 
 ## Stopped At
-Completed 01-01-PLAN.md
+Completed 01-02-PLAN.md
 
 ## Next Action
-Execute `01-02-PLAN.md` — ClipCursor + WTS session notification recovery (HOST-04)
+Execute `01-03-PLAN.md` — ProcessManager and QueueDrainTimer (IPC pipeline)
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -40,6 +40,9 @@ Execute `01-02-PLAN.md` — ClipCursor + WTS session notification recovery (HOST
 2. **devicePixelRatio for physical pixel matching** — find_target_screen uses int(logical_geo.width() * dpr) rather than physicalSize() (which returns mm). Stays within Qt coordinate model. (01-01)
 3. **window.create() before setScreen** — Forces native HWND so windowHandle() is non-None at placement time. (01-01)
 4. **Explicit spawn method in __main__** — multiprocessing.set_start_method("spawn") placed in __main__ guard, not in main(). Documents intent and prevents running in subprocesses. (01-01)
+5. **Qt QRect.right() off-by-one** — compute_allowed_rect uses left()+width() and top()+height() instead of right()/bottom() because Qt QRect.right() returns left+width-1. Prevents 1-pixel gap at cursor boundary. (01-02)
+6. **b"windows_generic_MSG" bytes literal required** — nativeEventFilter event_type on Windows is bytes, not str. Using str would silently never match, breaking all native MSG interception. (01-02)
+7. **Win32MessageFilter GC prevention** — Filter stored as window._msg_filter; without a Python-level strong reference, GC can collect the object while QApplication holds only a C++ pointer. (01-02)
 
 ## Blockers
 None
@@ -54,3 +57,4 @@ None
 | Phase | Plan | Duration (s) | Tasks | Files |
 |-------|------|-------------|-------|-------|
 | 01 | 01 | 248 | 2/2 | 15 |
+| 01 | 02 | 124 | 2/2 | 3 |

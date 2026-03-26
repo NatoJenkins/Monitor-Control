@@ -12,7 +12,7 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [x] **HOST-01**: Host app claims Display 3 as a borderless, always-on-top PyQt6 window at 1920x515, identified by physical pixel dimensions (not screen index), positioned at the correct virtual desktop origin
 - [x] **HOST-02**: Host window flags (FramelessWindowHint, WindowStaysOnTopHint, Tool) are set in a single call before `show()` so the window never appears in the taskbar and stays on top after Alt+Tab and after a fullscreen app launches
 - [ ] **HOST-03**: Host composites widget slots via QPainter in a single `paintEvent`; no per-widget top-level windows exist; rendering is flicker-free with no visible tearing
-- [ ] **HOST-04**: Windows `ClipCursor()` is applied at startup to block the cursor from entering Display 3, and is automatically re-applied after session lock/unlock, sleep/wake, and WM_DISPLAYCHANGE events
+- [x] **HOST-04**: Windows `ClipCursor()` is applied at startup to block the cursor from entering Display 3, and is automatically re-applied after session lock/unlock, sleep/wake, and WM_DISPLAYCHANGE events
 - [x] **HOST-05**: All host entry points are guarded with `if __name__ == "__main__":` so no recursive subprocess spawning occurs on Windows spawn start method
 
 ### IPC Pipeline
@@ -104,7 +104,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HOST-01 | Phase 1 | Complete |
 | HOST-02 | Phase 1 | Complete |
 | HOST-03 | Phase 1 | Pending |
-| HOST-04 | Phase 1 | Pending |
+| HOST-04 | Phase 1 | Complete |
 | HOST-05 | Phase 1 | Complete |
 | IPC-01 | Phase 1 | Pending |
 | IPC-02 | Phase 1 | Pending |
