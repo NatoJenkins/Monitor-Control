@@ -1,6 +1,6 @@
 import multiprocessing
 import queue
-from shared.message_schema import ConfigUpdateMessage
+from shared.message_schema import ConfigUpdateMessage, ControlSignal
 
 
 class ProcessManager:
@@ -48,6 +48,17 @@ class ProcessManager:
         _, _, in_q = entry
         try:
             in_q.put_nowait(ConfigUpdateMessage(widget_id=widget_id, config=config))
+        except queue.Full:
+            pass
+
+    def send_control_signal(self, widget_id: str, command: str) -> None:
+        """Forward a control command to a running widget's in_queue."""
+        entry = self._widgets.get(widget_id)
+        if entry is None:
+            return
+        _, _, in_q = entry
+        try:
+            in_q.put_nowait(ControlSignal(widget_id=widget_id, command=command))
         except queue.Full:
             pass
 

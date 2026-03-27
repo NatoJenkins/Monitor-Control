@@ -1,16 +1,45 @@
 {
   "layout": {
-    "display": {"width": 1920, "height": 515}
+    "display": {
+      "width": 1920,
+      "height": 515
+    }
   },
   "widgets": [
     {
-      "id": "dummy",
-      "type": "dummy",
+      "id": "pomodoro",
+      "type": "pomodoro",
       "x": 0,
       "y": 0,
-      "width": 1920,
+      "width": 640,
       "height": 515,
-      "settings": {}
+      "settings": {
+        "work_minutes": 25,
+        "short_break_minutes": 5,
+        "long_break_minutes": 15,
+        "cycles_before_long_break": 4,
+        "font": "Inter",
+        "work_accent_color": "#ff4444",
+        "short_break_accent_color": "#44ff44",
+        "long_break_accent_color": "#4488ff"
+      }
+    },
+    {
+      "id": "calendar",
+      "type": "calendar",
+      "x": 640,
+      "y": 0,
+      "width": 640,
+      "height": 515,
+      "settings": {
+        "clock_format": "24h",
+        "font": "Inter"
+      }
     }
-  ]
+  ],
+  "shortcuts": {
+    "pomodoro_start": "Ctrl+S",
+    "pomodoro_pause": "Ctrl+P",
+    "pomodoro_reset": "Ctrl+R"
+  }
 }

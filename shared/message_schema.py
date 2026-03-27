@@ -17,3 +17,10 @@ class ConfigUpdateMessage:
     """Sent host -> widget via in_queue to deliver updated settings."""
     widget_id: str
     config: dict[str, Any]
+
+
+@dataclass
+class ControlSignal:
+    """Sent host -> widget via in_queue to deliver control commands."""
+    widget_id: str
+    command: str  # 'start' | 'pause' | 'reset'

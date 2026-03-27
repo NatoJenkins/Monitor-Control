@@ -11,7 +11,8 @@ from host.win32_utils import (
 from host.process_manager import ProcessManager
 from host.queue_drain import QueueDrainTimer
 from host.config_loader import ConfigLoader, register_widget_type
-from widgets.dummy.widget import run_dummy_widget
+from widgets.pomodoro.widget import run_pomodoro_widget
+from widgets.calendar.widget import run_calendar_widget
 
 
 def main():
@@ -47,7 +48,8 @@ def main():
     window._msg_filter = msg_filter
 
     # --- Config-driven widget startup (CFG-01, CFG-02, CFG-03) ---
-    register_widget_type("dummy", run_dummy_widget)
+    register_widget_type("pomodoro", run_pomodoro_widget)
+    register_widget_type("calendar", run_calendar_widget)
 
     pm = ProcessManager()
     config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)
