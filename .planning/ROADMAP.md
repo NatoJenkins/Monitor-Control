@@ -59,11 +59,11 @@ Plans:
   3. Changing per-widget settings in the control panel delivers a CONFIG_UPDATE to the running widget process without killing and respawning it
   4. The control panel is the sole writer of config.json; the host never writes to it; no file corruption occurs when both processes are running
 
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: config.json schema, ConfigLoader, QFileSystemWatcher with re-add and debounce
-- [ ] 02-02: Control panel QMainWindow, atomic config write, layout and per-widget config forms
+- [ ] 02-01-PLAN.md — Config schema, ConfigLoader, QFileSystemWatcher hot-reload with re-add/debounce, bidirectional IPC queue, config reconciliation
+- [ ] 02-02-PLAN.md — Control panel QMainWindow, atomic config write, layout and per-widget config forms, hardware verification
 
 ### Phase 3: Pomodoro + Calendar Widgets
 **Goal**: Two real, useful widgets are running in the bar, validating the full WidgetBase/Pillow/queue/compositor pipeline with actual content before the hardest integration
@@ -132,4 +132,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-26 after Phase 1 complete (all 3 plans hardware-verified)*
+*Last updated: 2026-03-26 after Phase 2 planning complete (2 plans created)*
