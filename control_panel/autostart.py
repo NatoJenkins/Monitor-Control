@@ -6,8 +6,19 @@ import winreg
 from pathlib import Path
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+_STARTUP_APPROVED_KEY = (
+    r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+)
 _VALUE_NAME = "MonitorControl"
-_COMMAND_FILE = Path(os.environ.get("LOCALAPPDATA", "")) / "MonitorControl" / "host_command.txt"
+_COMMAND_FILE = (
+    Path(os.environ.get("LOCALAPPDATA", "")) / "MonitorControl" / "host_command.txt"
+)
+
+# 12-byte binary values for StartupApproved\Run.
+# Format: 4-byte DWORD status + 8-byte FILETIME (zeros = no timestamp).
+# Even first byte = enabled, odd = disabled.
+_APPROVED_ENABLED = b"\x02\x00\x00\x00" + b"\x00" * 8
+_APPROVED_DISABLED = b"\x03\x00\x00\x00" + b"\x00" * 8
 
 
 def _build_command() -> str:
@@ -38,23 +49,42 @@ def _build_command() -> str:
 
 
 def is_autostart_enabled() -> bool:
-    """Return True if the MonitorControl HKCU Run entry exists."""
+    """Return True if the MonitorControl HKCU Run entry exists and is approved."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as key:
             winreg.QueryValueEx(key, _VALUE_NAME)
-        return True
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         return False
-    except OSError:
-        return False
+
+    # If StartupApproved entry exists, check that it's enabled (even first byte).
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, _STARTUP_APPROVED_KEY
+        ) as key:
+            data, _ = winreg.QueryValueEx(key, _VALUE_NAME)
+            if isinstance(data, bytes) and len(data) >= 1 and data[0] % 2 != 0:
+                return False  # Odd first byte = disabled
+    except (FileNotFoundError, OSError):
+        pass  # No StartupApproved entry — Run key alone is sufficient
+
+    return True
 
 
 def enable_autostart() -> None:
-    """Write the MonitorControl entry to HKCU Run."""
+    """Write the MonitorControl entry to HKCU Run and mark as approved."""
+    command = _build_command()
     with winreg.OpenKey(
         winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_WRITE
     ) as key:
-        winreg.SetValueEx(key, _VALUE_NAME, 0, winreg.REG_SZ, _build_command())
+        winreg.SetValueEx(key, _VALUE_NAME, 0, winreg.REG_SZ, command)
+
+    # Also write StartupApproved so Windows doesn't block execution.
+    with winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER, _STARTUP_APPROVED_KEY, 0, winreg.KEY_WRITE
+    ) as key:
+        winreg.SetValueEx(
+            key, _VALUE_NAME, 0, winreg.REG_BINARY, _APPROVED_ENABLED
+        )
 
 
 def disable_autostart() -> None:
@@ -65,4 +95,17 @@ def disable_autostart() -> None:
         ) as key:
             winreg.DeleteValue(key, _VALUE_NAME)
     except FileNotFoundError:
-        pass  # Already absent -- no-op is correct
+        pass  # Already absent
+
+    # Also mark as disabled in StartupApproved (don't delete — Windows
+    # recreates it on next Settings/TaskManager visit and may pick a
+    # stale state).
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, _STARTUP_APPROVED_KEY, 0, winreg.KEY_WRITE
+        ) as key:
+            winreg.SetValueEx(
+                key, _VALUE_NAME, 0, winreg.REG_BINARY, _APPROVED_DISABLED
+            )
+    except FileNotFoundError:
+        pass  # Key doesn't exist yet — nothing to disable
