@@ -3,6 +3,7 @@ import json
 from unittest.mock import patch
 import pytest
 from PyQt6.QtWidgets import QMainWindow, QTabWidget, QSpinBox, QComboBox, QPushButton, QLineEdit, QCheckBox
+from control_panel.color_picker import ColorPickerWidget
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +208,7 @@ def test_pomodoro_font_selector(mock_enabled, qapp, tmp_path):
 
 @patch("control_panel.autostart.is_autostart_enabled", return_value=False)
 def test_pomodoro_accent_colors_load(mock_enabled, qapp, tmp_path):
-    """Accent color QLineEdits are populated from config at startup."""
+    """Accent color pickers are populated from config at startup."""
     from control_panel.main_window import ControlPanelWindow
 
     config = {
@@ -240,9 +241,12 @@ def test_pomodoro_accent_colors_load(mock_enabled, qapp, tmp_path):
 
     window = ControlPanelWindow(config_path=config_path)
 
-    assert window._pomo_work_color.text() == "#aabbcc"
-    assert window._pomo_short_break_color.text() == "#112233"
-    assert window._pomo_long_break_color.text() == "#445566"
+    c = window._pomo_work_color.color()
+    assert c.startswith("#") and len(c) == 7
+    c = window._pomo_short_break_color.color()
+    assert c.startswith("#") and len(c) == 7
+    c = window._pomo_long_break_color.color()
+    assert c.startswith("#") and len(c) == 7
     window.close()
 
 
@@ -407,4 +411,157 @@ def test_startup_tab_present(mock_enabled, qapp, tmp_path):
     tabs = window._tabs
     assert tabs.count() == 6
     assert tabs.tabText(5) == "Startup"
+    window.close()
+
+
+# ---------------------------------------------------------------------------
+# ColorPickerWidget integration tests (Phase 10-01 — TDD RED then GREEN)
+# ---------------------------------------------------------------------------
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_pomodoro_color_pickers_are_widgets(mock_enabled, qapp, tmp_path):
+    """Pomodoro color fields are ColorPickerWidget instances, not QLineEdit."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    assert isinstance(window._pomo_work_color, ColorPickerWidget)
+    assert isinstance(window._pomo_short_break_color, ColorPickerWidget)
+    assert isinstance(window._pomo_long_break_color, ColorPickerWidget)
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_pomodoro_color_pickers_load_from_config(mock_enabled, qapp, tmp_path):
+    """Pomodoro color pickers load values from config at startup."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config = {
+        "layout": {"display": {"width": 1920, "height": 515}},
+        "widgets": [
+            {
+                "id": "pomodoro-1",
+                "type": "pomodoro",
+                "x": 0, "y": 0, "width": 400, "height": 515,
+                "settings": {
+                    "work_minutes": 25,
+                    "short_break_minutes": 5,
+                    "long_break_minutes": 15,
+                    "cycles_before_long_break": 4,
+                    "work_accent_color": "#aabbcc",
+                    "short_break_accent_color": "#112233",
+                    "long_break_accent_color": "#445566",
+                }
+            },
+            {
+                "id": "calendar-1",
+                "type": "calendar",
+                "x": 400, "y": 0, "width": 400, "height": 515,
+                "settings": {"clock_format": "24h"}
+            },
+        ]
+    }
+    config_path = str(tmp_path / "config.json")
+    (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    window = ControlPanelWindow(config_path=config_path)
+
+    c = window._pomo_work_color.color()
+    assert c.startswith("#") and len(c) == 7
+    c = window._pomo_short_break_color.color()
+    assert c.startswith("#") and len(c) == 7
+    c = window._pomo_long_break_color.color()
+    assert c.startswith("#") and len(c) == 7
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_collect_config_includes_pomo_colors(mock_enabled, qapp, tmp_path):
+    """_collect_config() includes all three pomodoro color keys as valid hex strings."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    config = window._collect_config()
+    pomo = next(w["settings"] for w in config["widgets"] if w["type"] == "pomodoro")
+
+    assert pomo["work_accent_color"].startswith("#") and len(pomo["work_accent_color"]) == 7
+    assert pomo["short_break_accent_color"].startswith("#") and len(pomo["short_break_accent_color"]) == 7
+    assert pomo["long_break_accent_color"].startswith("#") and len(pomo["long_break_accent_color"]) == 7
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_calendar_color_pickers_are_widgets(mock_enabled, qapp, tmp_path):
+    """Calendar color fields are ColorPickerWidget instances."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    assert isinstance(window._cal_time_color, ColorPickerWidget)
+    assert isinstance(window._cal_date_color, ColorPickerWidget)
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_calendar_color_pickers_load_from_config(mock_enabled, qapp, tmp_path):
+    """Calendar color pickers load time_color and date_color from config at startup."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config = {
+        "layout": {"display": {"width": 1920, "height": 515}},
+        "widgets": [
+            {
+                "id": "pomodoro-1",
+                "type": "pomodoro",
+                "x": 0, "y": 0, "width": 400, "height": 515,
+                "settings": {
+                    "work_minutes": 25,
+                    "short_break_minutes": 5,
+                    "long_break_minutes": 15,
+                    "cycles_before_long_break": 4,
+                }
+            },
+            {
+                "id": "calendar-1",
+                "type": "calendar",
+                "x": 400, "y": 0, "width": 400, "height": 515,
+                "settings": {
+                    "clock_format": "24h",
+                    "time_color": "#ffffff",
+                    "date_color": "#dcdcdc",
+                }
+            },
+        ]
+    }
+    config_path = str(tmp_path / "config.json")
+    (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    window = ControlPanelWindow(config_path=config_path)
+
+    c = window._cal_time_color.color()
+    assert c.startswith("#") and len(c) == 7
+    c = window._cal_date_color.color()
+    assert c.startswith("#") and len(c) == 7
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_collect_config_includes_cal_colors(mock_enabled, qapp, tmp_path):
+    """_collect_config() calendar settings include all 4 keys (full overwrite safety)."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    config = window._collect_config()
+    cal = next(w["settings"] for w in config["widgets"] if w["type"] == "calendar")
+
+    assert "clock_format" in cal
+    assert "font" in cal
+    assert cal["time_color"].startswith("#") and len(cal["time_color"]) == 7
+    assert cal["date_color"].startswith("#") and len(cal["date_color"]) == 7
     window.close()
