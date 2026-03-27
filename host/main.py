@@ -51,10 +51,40 @@ def main():
     register_session_notifications(hwnd)
 
     # Install native event filter for WM_WTSSESSION_CHANGE + WM_DISPLAYCHANGE
+    from PyQt6.QtCore import QTimer
+
     def reapply_clip():
+        nonlocal target, allowed
         apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
 
-    msg_filter = Win32MessageFilter(on_clip_needed=reapply_clip)
+    def on_display_change():
+        """Re-find Display 3, reposition window, and recompute ClipCursor."""
+        nonlocal target, allowed
+        new_target = find_target_screen(phys_width=1920, phys_height=515)
+        if new_target is None:
+            # Display 3 not available yet — retry shortly
+            QTimer.singleShot(2000, on_display_change)
+            return
+        target = new_target
+        window.setGeometry(target.geometry())
+        allowed = compute_allowed_rect(target, app.screens())
+        apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
+
+    # Debounce display changes — monitors often send multiple WM_DISPLAYCHANGE
+    # messages in rapid succession when powering on/off.
+    _display_change_timer = QTimer()
+    _display_change_timer.setSingleShot(True)
+    _display_change_timer.setInterval(1500)
+    _display_change_timer.timeout.connect(on_display_change)
+    window._display_change_timer = _display_change_timer  # prevent GC
+
+    def on_clip_or_display_change(is_display_change=False):
+        if is_display_change:
+            _display_change_timer.start()  # debounced reposition + reclip
+        else:
+            reapply_clip()  # immediate reclip only
+
+    msg_filter = Win32MessageFilter(on_clip_needed=on_clip_or_display_change)
     app.installNativeEventFilter(msg_filter)
 
     # Prevent garbage collection of the filter during app lifetime

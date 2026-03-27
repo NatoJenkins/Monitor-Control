@@ -60,18 +60,18 @@ def unregister_session_notifications(hwnd: int) -> None:
 
 
 class Win32MessageFilter(QAbstractNativeEventFilter):
-    def __init__(self, on_clip_needed):
+    def __init__(self, on_clip_needed=None):
         super().__init__()
-        self._on_clip_needed = on_clip_needed
+        self._on_clip_needed = on_clip_needed or (lambda **_: None)
 
     def nativeEventFilter(self, event_type, message):
         if event_type == b"windows_generic_MSG":
             msg = ctypes.wintypes.MSG.from_address(message.__int__())
             if msg.message == WM_WTSSESSION_CHANGE:
                 if msg.wParam == WTS_SESSION_UNLOCK:
-                    self._on_clip_needed()
+                    self._on_clip_needed(is_display_change=True)
             elif msg.message == win32con.WM_DISPLAYCHANGE:
-                self._on_clip_needed()
+                self._on_clip_needed(is_display_change=True)
             elif msg.message == WM_ACTIVATEAPP:
                 # Re-apply on both activate (wParam=1) AND deactivate (wParam=0).
                 # When focus leaves our app via alt-tab, Windows calls ClipCursor(NULL)
