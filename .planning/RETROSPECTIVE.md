@@ -52,6 +52,48 @@
 
 ---
 
+## Milestone: v1.1 — Startup & Distribution
+
+**Shipped:** 2026-03-27
+**Phases:** 3 | **Plans:** 3
+
+### What Was Built
+
+1. `shared/paths.py` canonical config path module with `get_config_path()` using `%LOCALAPPDATA%\MonitorControl\config.json` — shared between packaged exe and Python host (Phase 5, evolved in Phase 7)
+2. HKCU Run key autostart via `winreg` stdlib — registry module, no-console launcher (`launch_host.pyw`), and Startup tab in the control panel with live registry read and immediate toggle (Phase 6)
+3. Standalone `MonitorControl.exe` packaged with PyInstaller 6.19.0 onedir — no console window, custom blue "MC" icon (16/32/48/256px), reproducible `build/control_panel.spec` (Phase 7)
+
+### What Worked
+
+- **Smoke testing caught a real architectural bug**: The Phase 7 checkpoint smoke test revealed that the packaged exe and Python host were writing to different `config.json` files. Automated tests could not catch this — only a live exe-plus-host test exposed it. The fix (switching to `%LOCALAPPDATA%`) was a meaningful architectural improvement, not a workaround.
+- **Single-plan phases kept scope tight**: All three v1.1 phases shipped as single plans. The narrow scope meant each plan could be fully verified before moving on, with no wave coordination overhead.
+- **`contents_directory='.'` in the spec solved PyInstaller 6's path breaking change cleanly**: Setting this one parameter restored the expected flat layout without any changes to `shared/paths.py` (at the time). The research phase identified this before planning, so the plan was correct on the first attempt.
+
+### What Was Inefficient
+
+- **Config path architecture was designed for a scenario that didn't exist in testing**: The plan assumed both the exe and host would be in the same directory at distribution time. This was true for the final distribution but false for the dev/test scenario (exe in `dist/MonitorControl/`, host at project root). The gap wasn't caught until manual smoke testing. A prior discussion of the dev vs. distribution topology would have surfaced this earlier.
+- **SUMMARY.md `one_liner` field not populated**: Same schema inconsistency as v1.0 — `gsd-tools summary-extract` returned null for all three phases. The field needs to be written at plan completion time.
+- **v1.1 MILESTONE-AUDIT.md was never created**: The audit step was skipped because all phases were known-complete. The audit would have been fast but added formal validation of cross-phase integration (especially the paths/autostart/packaging chain).
+
+### Patterns Established
+
+- **`%LOCALAPPDATA%\MonitorControl\` as the canonical config directory**: Both the packaged exe and the Python host use this path. Future phases (including host packaging) must respect this location.
+- **`contents_directory='.'` in all future PyInstaller specs**: Flat layout is required for `Path(__file__).parent.parent` to work correctly in frozen apps. Document this in all future spec files.
+- **One-time migration in `get_config_path()`**: Copy from legacy location on first run rather than requiring manual migration. Invisible to the user.
+
+### Key Lessons
+
+1. **Test packaged exe against running host before approving checkpoint.** The config path mismatch would have been caught immediately if the smoke test protocol included "make a change in the control panel and verify the host reacts."
+2. **Document the dev vs. distribution topology explicitly in research.** Phase 7's research focused on the PyInstaller mechanics but did not address "where does config.json live when exe and host are in different directories during development?"
+3. **Write `one_liner` in SUMMARY.md at task completion time.** The field is empty in all v1.1 summaries. GSD milestone tooling depends on it for accomplishment extraction.
+
+### Cost Observations
+
+- Sessions: ~3 (one per phase, roughly; Phase 7 extended by the config path debugging)
+- Notable: Phase 7's checkpoint was the most valuable part of the milestone — the smoke test caught an architectural gap that automated tests would never have found.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Documentation Completeness
@@ -59,9 +101,11 @@
 | Milestone | Phases with VERIFICATION.md | Phases Nyquist-compliant |
 |-----------|----------------------------|--------------------------|
 | v1.0      | 3/4                        | 0/4                      |
+| v1.1      | 3/3                        | 0/3                      |
 
 ### Hardware Verification Coverage
 
 | Milestone | Phases hardware-verified | Hardware bugs caught |
 |-----------|--------------------------|----------------------|
 | v1.0      | 4/4                      | 3 (showFullScreen wrong monitor, WM_ACTIVATEAPP ClipCursor gap, WinRT IVectorView/None crash) |
+| v1.1      | 1/3 (Phase 7 only)       | 1 (config path mismatch between packaged exe and Python host) |

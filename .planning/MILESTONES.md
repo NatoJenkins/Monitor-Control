@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.1 Startup & Distribution (Shipped: 2026-03-27)
+
+**Phases completed:** 3 phases, 3 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.0 MVP (Shipped: 2026-03-27)
 
 **Phases:** 1–4 | **Plans:** 9 | **Timeline:** 2026-03-26 → 2026-03-27
