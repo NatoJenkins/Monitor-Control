@@ -1,111 +1,58 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_plan: 2 / 2
-status: unknown
-last_updated: "2026-03-27T06:34:24.292Z"
+milestone: v1.1
+milestone_name: Startup & Distribution
+current_plan: —
+status: defining_requirements
+last_updated: "2026-03-27T00:00:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Status
-`MILESTONE_COMPLETE` — v1.0 MVP shipped 2026-03-27. All 4 phases, 9 plans complete. Ready for next milestone.
+`DEFINING_REQUIREMENTS` — Milestone v1.1 started 2026-03-27. Requirements and roadmap pending.
 
 ## Current Phase
-None — v1.0 complete.
+None — defining requirements for v1.1.
 
 ## Progress
-[##########] Phase 1 complete (3/3 plans)
-[##########] Phase 2 complete — hardware verified (2/2 plans)
-[##########] Phase 3 complete — hardware verified (2/2 plans)
-[##########] Phase 4 complete — hardware verified (2/2 plans)
+(Not started — defining requirements)
 
 ## Milestone
-v1.0 — SHIPPED 2026-03-27
-
-## Completed Phases
-- Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
-- Phase 2 — Config System + Control Panel (completed 2026-03-27, hardware verified)
-- Phase 3 — Pomodoro + Calendar Widgets (completed 2026-03-27, hardware verified)
-- Phase 4 — Notification Interceptor (completed 2026-03-27, hardware verified)
+v1.1 — Startup & Distribution
 
 ## Last Action
-2026-03-27 — Completed v1.0 milestone. Audited (gaps_found: Phase 1 missing VERIFICATION.md + IPC-03 spec deviation, both accepted as known gaps). Archived roadmap + requirements to milestones/. PROJECT.md evolved. RETROSPECTIVE.md created. Git tag v1.0 created.
+2026-03-27 — Milestone v1.1 started. Goals: host autostart at Windows login, standalone control panel .exe.
 
 ## Next Action
-Start next milestone: `/gsd:new-milestone`
+Define requirements, then run `/gsd:plan-phase [N]` to start execution.
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Keep productivity tooling off the primary monitors — widgets run persistently in a dedicated display the cursor cannot enter, requiring zero window management from the user.
-**Current focus:** Planning next milestone
+**Current focus:** Defining v1.1 requirements
 
 ## Decisions
 
-1. **FrameData is pure Python** — No Qt/win32 imports in shared/message_schema.py. Widget subprocesses must be able to import FrameData without pulling in Qt. (01-01)
-2. **devicePixelRatio for physical pixel matching** — find_target_screen uses int(logical_geo.width() * dpr) rather than physicalSize() (which returns mm). Stays within Qt coordinate model. (01-01)
-3. **window.create() before setScreen** — Forces native HWND so windowHandle() is non-None at placement time. (01-01)
-4. **Explicit spawn method in __main__** — multiprocessing.set_start_method("spawn") placed in __main__ guard, not in main(). Documents intent and prevents running in subprocesses. (01-01)
-5. **Qt QRect.right() off-by-one** — compute_allowed_rect uses left()+width() and top()+height() instead of right()/bottom() because Qt QRect.right() returns left+width-1. Prevents 1-pixel gap at cursor boundary. (01-02)
-6. **b"windows_generic_MSG" bytes literal required** — nativeEventFilter event_type on Windows is bytes, not str. Using str would silently never match, breaking all native MSG interception. (01-02)
-7. **Win32MessageFilter GC prevention** — Filter stored as window._msg_filter; without a Python-level strong reference, GC can collect the object while QApplication holds only a C++ pointer. (01-02)
-8. **QueueDrainTimer schedule_repaint() once per drain cycle** — Called after full drain loop, not inside per-queue loop, letting Qt coalesce repaints into a single paintEvent. (01-03)
-9. **Compositor owned by HostWindow** — Stored as window.compositor; paintEvent delegates directly. ProcessManager and drain timer stored as window._pm / window._drain_timer to prevent GC. (01-03)
-10. **ProcessManager deadline drain** — Drain loop uses 2s deadline budget before join, not single get_nowait, to flush burst frames and prevent feeder thread deadlock. (01-03)
-11. **DummyWidget silent drop on queue.Full** — Backpressure handled by frame dropping (not stalling subprocess); host drain rate matches push rate at 50ms. (01-03)
-12. **place_on_screen: setGeometry+show instead of showFullScreen** — showFullScreen() calls MonitorFromWindow internally which selects the active monitor, not the intended target. On the HDMI strip (Display 3), this caused the window to appear on Monitor 2. Fix: setGeometry(screen.geometry()) + show() assigns Qt geometry from the target QScreen directly. (01-03 bug fix, commit 547ef4a)
-13. **WIDGET_REGISTRY as module-level dict** — register_widget_type() called before ConfigLoader construction in main.py, enabling upfront type dispatch without coupling ConfigLoader to specific widget imports. (02-01)
-14. **in_q maxsize=5 for config updates** — Config updates are infrequent; small buffer prevents unbounded memory if widget subprocess falls behind. Separate from out_q (maxsize=10, high-frequency frames). (02-01)
-15. **reconcile: stop before start** — Prevents transient duplicate widget_id state if a widget ID is repurposed across a hot-reload. (02-01)
-16. **QFileSystemWatcher re-add on every fileChanged** — Atomic file replacement (editor write) drops the watched path from the watcher; re-add on every event is mandatory for hot-reload to survive saves. (02-01)
-17. **control_panel is sole writer of config.json** — host (ConfigLoader) never writes, only reads and watches. Enforced by design: only control_panel/config_io.py has atomic_write_config. (02-02)
-18. **Temp file in same directory as target** — tempfile.mkstemp(dir=same_dir) ensures os.replace stays on same filesystem, avoiding cross-device rename errors on Windows. (02-02)
-19. **_update_widget_settings does NOT auto-create widget entries** — Phase 3 adds Pomodoro/Calendar to config.json; panel only updates settings for existing entries. (02-02)
-20. **qapp fixture is session-scoped** — Avoids creating multiple QApplication instances across test session (Qt enforces singleton). (02-02)
-- [Phase 03]: PomodoroState uses time.monotonic() deadline for drift-free countdown — avoids accumulated sleep drift over long sessions. (03-01)
-- [Phase 03]: Config duration updates deferred to _apply_pending_durations() at _transition_to() — current countdown unaffected by mid-session config changes. (03-01)
-- [Phase 03]: CalendarWidget uses WidgetBase.poll_config_update() not custom _poll_in_queue() — no ControlSignal needed for clock widget. (03-01)
-- [Phase 03]: Digital-7.ttf not bundled — unavailable on public GitHub; both widgets fall back to ImageFont.load_default() without crash. (03-01)
-- [Phase 03]: Watch config directory with directoryChanged (not file with fileChanged) — QFileSystemWatcher.addPath() returns False for non-existent paths; directory watching catches first pomodoro_command.json creation. (03-02)
-- [Phase 03]: window._cmd_watcher = cmd_watcher stored at window level for GC prevention — same pattern as Win32MessageFilter. (03-02)
-- [Phase 03]: write_pomodoro_command uses tempfile.mkstemp(dir=same_dir) for same-filesystem atomic rename guarantee on Windows. (03-02)
-- [Phase 03]: WM_ACTIVATEAPP deactivate (wParam=0) also re-applies ClipCursor — Windows calls ClipCursor(NULL) when a different app gains focus; both activate and deactivate paths now trigger on_clip_needed() so mouse containment persists across alt-tab. (03-02 bug fix)
-- [Phase 04]: Use POLLING (get_notifications_async at 2s interval) not event subscription -- add_notification_changed raises OSError WinError -2147023728 on python.org Python (confirmed in 04-01 spike)
-- [Phase 04]: get_binding("ToastGeneric") string form required -- KnownNotificationBindings.TOAST_GENERIC constant absent in winrt-Windows.UI.Notifications==3.2.1 (04-01 spike)
-- [Phase 04]: creation_time is Python datetime (UTC-aware) -- format with n.creation_time.astimezone().strftime('%H:%M') for local time; no .to_datetime() conversion needed (04-01 spike)
-- [Phase 04]: Six winrt packages required (not two) -- Management + Notifications + Foundation + Foundation.Collections + ApplicationModel + runtime; all pinned to ==3.2.1 (04-01 spike)
-- [Phase 04]: list(IVectorView) required before indexing -- WinRT IVectorView does not support len() reliably in winrt 3.2.1; always convert to list first (04-02 hardware fix)
-- [Phase 04]: WinRT text element .text can return None for empty toast nodes -- use (elem.text or "") coercion; PowerShell AppendChild DOM quirk is the trigger (04-02 hardware fix)
-- [Phase 04]: _run_once() isolation pattern -- extract polling loop body into separate method so run() can wrap with try/except Exception; prevents subprocess crash -> dark red compositor slot (04-02 hardware fix)
-- [Phase 04]: PowerShell toast test requires .InnerText = not .AppendChild() -- WinRT live NodeList quirk; AppendChild succeeds but .text stays None; use InnerText property assignment instead (04-02 hardware finding)
+(Carry forward from v1.0 — see PROJECT.md Key Decisions)
 
 ## Blockers
 None
 
 ## Open Questions
-1. ~~WinRT async in subprocess — spike required in Phase 4 plan 04-01 before widget build~~ RESOLVED: asyncio.run() works in spawn subprocess; polling confirmed; see 04-01-SUMMARY.md
-2. ClipCursor RECT geometry across mixed-DPI 3-monitor layout — validate on real hardware in Phase 1
-3. ~~Notification permission persistence across host restarts — confirm during Phase 4 spike~~ RESOLVED: GetAccessStatus() returns ALLOWED in subprocess after host-granted permission; user-level system state confirmed cross-process
+1. ClipCursor RECT geometry across mixed-DPI 3-monitor layout — validate on real hardware in Phase 1 (carried from v1.0)
 
-## Performance Metrics
+## Accumulated Context
 
-| Phase | Plan | Duration (s) | Tasks | Files |
-|-------|------|-------------|-------|-------|
-| 01 | 01 | 248 | 2/2 | 15 |
-| 01 | 02 | 124 | 2/2 | 3 |
-| 01 | 03 | 1800 | 3/3 | 14 |
-| 02 | 01 | 331 | 2/2 | 10 |
-| 02 | 02 | 1800 | 2/2 | 8 |
-| 03 | 01 | 360 | 3/3 | 15 |
-| 03 | 02 | 232 | 2/3 | 4 |
-| Phase 04 P01 | 419 | 2 tasks | 4 files |
-| 04 | 02 | 4500 | 3/3 | 5 |
-
+- v1.0 shipped 2026-03-27: host + IPC pipeline + config hot-reload + Pomodoro + Calendar + WinRT notification interceptor
+- Qt must not be imported in widget subprocesses (spawn + Qt = crash on Windows) — Pillow for widget rendering
+- WinRT event subscription raises OSError on python.org Python; polling at 2s confirmed working
+- proc.terminate() without join() is deliberate (join() deadlocks Qt main thread on Windows)
+- All autostart/packaging work must not require a terminal — "finished software" UX target

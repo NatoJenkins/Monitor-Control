@@ -1,5 +1,13 @@
 # MonitorControl
 
+## Current Milestone: v1.1 Startup & Distribution
+
+**Goal:** Make MonitorControl feel like finished software — autostart on login and a distributable control panel .exe.
+
+**Target features:**
+- Host configurable to start automatically on Windows login (no terminal required)
+- Control panel packaged as standalone .exe (no Python environment required)
+
 ## What This Is
 
 A modular widget framework that drives a dedicated 1920×515 secondary display (Display 3, positioned below two primary monitors) as a persistent utility bar. A host Python/PyQt6 app owns the display as a borderless always-on-top window, compositing rendered output from individual widget subprocesses that communicate via multiprocessing queues. A separate PyQt6 control panel manages widget layout and per-widget configuration via a config.json the host hot-reloads. v1.0 ships with Pomodoro timer, Calendar/Clock, and Windows notification interceptor widgets.
@@ -25,6 +33,12 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 
 ### Active
 
+<!-- v1.1 scope -->
+- [ ] User can enable/disable host autostart at Windows login from the control panel (STRT-01..04)
+- [ ] Host launches without a visible terminal/console window when started automatically (STRT-03)
+- [ ] Control panel packaged as a standalone .exe requiring no Python environment (EXEC-01..04)
+
+<!-- Backlog — not in v1.1 scope -->
 - [ ] Pomodoro plays an audio cue at each phase transition (PLSH-01)
 - [ ] Widget crash detection with visual placeholder and control panel restart button (PLSH-02)
 - [ ] Notification widget shows scrollable queue of multiple simultaneous toasts (PLSH-03)
@@ -90,4 +104,4 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 | proc.terminate() without join() in stop_widget | join() on Qt main thread deadlocks on Windows (queue pipe not being drained) | ⚠️ Revisit — IPC-03 spec language needs amendment in v1.1 |
 
 ---
-*Last updated: 2026-03-27 after v1.0 milestone*
+*Last updated: 2026-03-27 after v1.1 milestone started*
