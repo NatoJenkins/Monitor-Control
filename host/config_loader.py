@@ -25,7 +25,8 @@ class ConfigLoader:
         self._debounce.timeout.connect(self._do_reload)
 
         self._watcher = QFileSystemWatcher()
-        self._watcher.addPath(self._path)
+        added = self._watcher.addPath(self._path)
+        print(f"[ConfigLoader] watching {self._path!r} (addPath succeeded={added})", flush=True)
         self._watcher.fileChanged.connect(self._on_file_changed)
 
     @property
@@ -52,17 +53,21 @@ class ConfigLoader:
     def _on_file_changed(self, path: str) -> None:
         # CRITICAL: re-add after atomic replace — watcher drops path on rename
         self._watcher.addPath(self._path)
+        print(f"[ConfigLoader] fileChanged signal received; re-added watcher for {self._path}", flush=True)
         # Restart debounce timer to collapse double-fires into single reload
         self._debounce.start()
 
     def _do_reload(self) -> None:
         if not os.path.exists(self._path):
+            print("[ConfigLoader] _do_reload: config file not found, skipping", flush=True)
             return
         try:
             with open(self._path, encoding="utf-8") as f:
                 new_config = json.load(f)
         except (OSError, json.JSONDecodeError):
+            print("[ConfigLoader] _do_reload: read/parse error, will retry on next event", flush=True)
             return  # partial write; next event will retry
+        print(f"[ConfigLoader] hot-reload triggered — reconciling config", flush=True)
         old_config = self._current
         self._current = new_config
         self._reconcile(old_config, new_config)
