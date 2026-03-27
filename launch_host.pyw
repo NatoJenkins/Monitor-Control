@@ -4,15 +4,21 @@
 import sys
 import os
 
-# Null-guard: under pythonw.exe sys.stdout and sys.stderr are None.
-if sys.stdout is None:
-    sys.stdout = open(os.devnull, "w")
-if sys.stderr is None:
-    sys.stderr = open(os.devnull, "w")
+# Redirect stdout/stderr to a log file so autostart failures are visible.
+_log_dir = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), "MonitorControl")
+os.makedirs(_log_dir, exist_ok=True)
+_log = open(os.path.join(_log_dir, "launch.log"), "a")
+import datetime
+_log.write(f"\n--- launch {datetime.datetime.now().isoformat()} ---\n")
+_log.flush()
+sys.stdout = _log
+sys.stderr = _log
 
 import multiprocessing
 
 if __name__ == "__main__":
+    import time
+    time.sleep(5)  # Wait for displays and shell to fully initialize at login
     multiprocessing.set_start_method("spawn")
     from host.main import main
     main()

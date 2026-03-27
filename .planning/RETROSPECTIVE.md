@@ -112,6 +112,12 @@
 - **Symptom:** Cursor could freely move onto Display 3 (the excluded monitor) after: pressing the Windows key, Alt-Tab, interacting with another monitor, or Ctrl+Win+Arrow virtual desktop switch. Clicking on Display 3 itself would re-enforce the lock (cursor snapped back), but the cursor remained free until then.
 - **Root cause:** The message-based ClipCursor re-application (WM_ACTIVATE, WM_ACTIVATEAPP) fires during our deactivation handler, but Windows clears ClipCursor *after* the message returns — when the newly-focused window/shell processes its activation. The re-apply is immediately overridden. Virtual desktop switches and cross-monitor interactions don't reliably send these messages at all.
 - **Fix:** Added a 100ms polling QTimer that continuously re-applies ClipCursor as a safety net. ClipCursor is a single Win32 syscall with negligible overhead, and it auto-snaps the cursor back into the allowed region if it has already escaped. The existing message-based handlers are retained for immediate response when timing works out.
+- **Commit:** `c94d0be`
+
+**Bug 5: Packaged control panel exe stale after autostart fix commits**
+- **Symptom:** The control panel exe (`dist/MonitorControl/MonitorControl.exe`) could not save settings or send pomodoro commands to the host. Buttons appeared to work but had no effect. Running the control panel from source (`python -m control_panel`) worked correctly.
+- **Root cause:** The packaged exe was built before the autostart fix commits (`ce808fc`, etc.) which modified `control_panel/autostart.py` and `control_panel/main_window.py`. PyInstaller's cache detected the stale modules on rebuild: "Building because control_panel\main_window.py changed". The exe was bundling old code.
+- **Fix:** Rebuilt the packaged exe with `python -m PyInstaller build/control_panel.spec --noconfirm`.
 - **Commit:** (this commit)
 
 ### Key Lessons (Post-Ship)
@@ -120,11 +126,12 @@
 5. **Any UI toggle that modifies system state must show errors, never silently succeed.** The RuntimeError was swallowed because only `OSError` was caught. Every code path that changes registry/filesystem state should catch `Exception` and surface failures to the user.
 6. **`WM_DISPLAYCHANGE` must trigger full display re-discovery, not just ClipCursor reapplication.** Any host with display-dependent geometry needs to re-find its target screen and reposition after display topology changes.
 7. **Message-based ClipCursor re-application is insufficient — use a polling timer as a safety net.** Windows clears ClipCursor after our deactivation message returns, overriding the re-apply. A 100ms polling timer guarantees restoration regardless of the trigger (Start menu, Alt-Tab, virtual desktop switch, cross-monitor interaction).
+8. **Rebuild the packaged exe after every code change to the control panel.** PyInstaller's onedir build caches modules; the exe silently runs stale code if not rebuilt. Add a rebuild step to the post-commit checklist for any change touching `control_panel/`.
 
 ### Cost Observations
 
 - Sessions: ~3 (one per phase, roughly; Phase 7 extended by the config path debugging)
-- Post-ship bug fixing: ~1 additional session covering 3 bugs discovered during real-world reboot testing
+- Post-ship bug fixing: ~2 additional sessions covering 5 bugs discovered during real-world testing
 - Notable: Phase 7's checkpoint was the most valuable part of the milestone — the smoke test caught an architectural gap that automated tests would never have found. The post-ship bugs reinforce that reboot-cycle testing should be part of the phase verification protocol for any startup/display feature.
 
 ---
