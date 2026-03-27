@@ -168,3 +168,22 @@ class TestWin32MessageFilter:
 
         callback, _ = self._run_filter(WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK)
         callback.assert_not_called()
+
+    def test_activateapp_activate_triggers_clip_reapply(self):
+        """WM_ACTIVATEAPP with wParam=1 (app gaining focus) must invoke on_clip_needed."""
+        from host.win32_utils import WM_ACTIVATEAPP
+
+        callback, _ = self._run_filter(WM_ACTIVATEAPP, 1)
+        callback.assert_called_once()
+
+    def test_activateapp_deactivate_triggers_clip_reapply(self):
+        """WM_ACTIVATEAPP with wParam=0 (app losing focus via alt-tab) must invoke on_clip_needed.
+
+        Windows calls ClipCursor(NULL) when a different application receives focus.
+        Intercepting the deactivate message and re-applying the clip immediately
+        restores the containment rectangle so the cursor cannot drift onto Display 3.
+        """
+        from host.win32_utils import WM_ACTIVATEAPP
+
+        callback, _ = self._run_filter(WM_ACTIVATEAPP, 0)
+        callback.assert_called_once()

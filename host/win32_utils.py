@@ -70,7 +70,11 @@ class Win32MessageFilter(QAbstractNativeEventFilter):
                     self._on_clip_needed()
             elif msg.message == win32con.WM_DISPLAYCHANGE:
                 self._on_clip_needed()
-            elif msg.message == WM_ACTIVATEAPP and msg.wParam:
+            elif msg.message == WM_ACTIVATEAPP:
+                # Re-apply on both activate (wParam=1) AND deactivate (wParam=0).
+                # When focus leaves our app via alt-tab, Windows calls ClipCursor(NULL)
+                # for the newly-focused app; intercepting the deactivate message and
+                # immediately re-applying the clip restores containment.
                 self._on_clip_needed()
         return False, 0
 
