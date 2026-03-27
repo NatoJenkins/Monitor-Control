@@ -1,6 +1,5 @@
 import multiprocessing
 import queue
-import time
 from shared.message_schema import ConfigUpdateMessage
 
 
@@ -23,24 +22,13 @@ class ProcessManager:
         if widget_id not in self._widgets:
             return
         proc, out_q, in_q = self._widgets.pop(widget_id)
+        # On Windows, terminate() calls TerminateProcess() — immediate hard kill.
+        # Do NOT call proc.join() here: it deadlocks the Qt main thread because the
+        # child's internal multiprocessing.Queue feeder thread may be blocked trying
+        # to flush to the pipe, and join() waits for the child to exit while nobody
+        # is reading the pipe (drain timer is also on the main thread, so blocked).
+        # Daemon processes are collected by the OS when the parent exits.
         proc.terminate()
-        # BLOCKER: drain out_queue FULLY before join — prevents feeder thread deadlock
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline:
-            try:
-                out_q.get_nowait()
-            except queue.Empty:
-                break
-        # Drain in_queue as well
-        while True:
-            try:
-                in_q.get_nowait()
-            except queue.Empty:
-                break
-        proc.join(timeout=5)
-        if proc.is_alive():
-            proc.kill()
-            proc.join(timeout=2)
 
     def stop_all(self) -> None:
         for widget_id in list(self._widgets):
