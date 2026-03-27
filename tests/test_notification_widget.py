@@ -399,3 +399,96 @@ def test_body_text_wraps_at_3_lines():
     assert frame.width == 640
     assert frame.height == 515
     assert len(frame.rgba_bytes) == 640 * 515 * 4
+
+
+# ---------------------------------------------------------------------------
+# Empty / None text field robustness (hardware regression fix)
+# ---------------------------------------------------------------------------
+
+def test_fetch_latest_none_text_coerced_to_empty_string():
+    """When toast elements have .text == None, _fetch_latest returns empty strings not None.
+
+    Hardware regression: PowerShell AppendChild DOM quirk sends empty toast nodes.
+    winrt text elements return None for .text on nodes without content.
+    The widget must coerce None -> "" to avoid Pillow TypeError on render.
+    """
+    w = make_widget()
+
+    none_title_elem = unittest.mock.MagicMock()
+    none_title_elem.text = None  # simulate WinRT returning None
+    none_body_elem = unittest.mock.MagicMock()
+    none_body_elem.text = None
+
+    notif = unittest.mock.MagicMock()
+    notif.id = 999
+    notif.app_info.display_info.display_name = "TestApp"
+    notif.notification.visual.get_binding.return_value.get_text_elements.return_value = [
+        none_title_elem, none_body_elem
+    ]
+    notif.creation_time = datetime.datetime(2026, 3, 26, 10, 0, 0,
+                                            tzinfo=datetime.timezone.utc)
+
+    with unittest.mock.patch.object(w, "_is_allowed", return_value=True):
+        with unittest.mock.patch("widgets.notification.widget.asyncio") as mock_asyncio:
+            mock_asyncio.run.return_value = [notif]
+            result = w._fetch_latest()
+
+    assert result is not None, "_fetch_latest should return a result even with None text"
+    notif_id, app_name, title, body, timestamp = result
+    assert title == "", f"Expected title to be coerced to '', got {title!r}"
+    assert body == "", f"Expected body to be coerced to '', got {body!r}"
+
+
+def test_render_notification_with_empty_strings():
+    """_render_notification must not crash when title and body are empty strings."""
+    from shared.message_schema import FrameData
+
+    w = make_widget()
+    frame = w._render_notification(
+        app_name="TestApp",
+        title="",
+        body="",
+        timestamp="10:00",
+    )
+
+    assert isinstance(frame, FrameData)
+    assert frame.width == 640
+    assert frame.height == 515
+    assert len(frame.rgba_bytes) == 640 * 515 * 4
+
+
+def test_run_once_exception_does_not_kill_subprocess():
+    """If _run_once raises, run() catches it, pushes idle frame, and continues.
+
+    Hardware regression: without this guard, any WinRT or Pillow exception in the
+    polling cycle crashes the subprocess, turning the slot dark red.
+    """
+    w = make_widget()
+
+    call_count = [0]
+
+    def boom():
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise RuntimeError("simulated WinRT error")
+        # Second call: succeed normally (push idle frame), then break via KeyboardInterrupt
+        # which is a BaseException (not caught by 'except Exception') so the loop exits.
+        frame = w._render_idle()
+        try:
+            w.out_queue.put(frame, block=False)
+        except queue.Full:
+            pass
+        raise KeyboardInterrupt("test sentinel")
+
+    with unittest.mock.patch.object(w, "_run_once", side_effect=boom):
+        with unittest.mock.patch("time.sleep"):  # skip actual sleep
+            try:
+                w.run()
+            except KeyboardInterrupt:
+                pass
+
+    # If the loop survived past the first exception, call_count > 1
+    assert call_count[0] >= 2, (
+        "run() should have continued after _run_once raised, "
+        f"but _run_once was only called {call_count[0]} time(s)"
+    )

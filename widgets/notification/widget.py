@@ -93,9 +93,12 @@ class NotificationWidget(WidgetBase):
         # Extract title and body from toast binding
         # 04-01 spike confirmed: use get_binding("ToastGeneric") string form
         binding = n.notification.visual.get_binding("ToastGeneric")
-        text_elements = binding.get_text_elements() if binding else []
-        title = text_elements[0].text if len(text_elements) > 0 else ""
-        body = text_elements[1].text if len(text_elements) > 1 else ""
+        # Convert WinRT IVectorView to a plain Python list before indexing;
+        # IVectorView does not support len() reliably in winrt 3.2.1.
+        # Guard each element's .text against None (empty toast nodes send None).
+        text_elements = list(binding.get_text_elements()) if binding else []
+        title = (text_elements[0].text or "") if len(text_elements) > 0 else ""
+        body = (text_elements[1].text or "") if len(text_elements) > 1 else ""
 
         # Format timestamp — creation_time is Python datetime (UTC-aware) per 04-01 spike
         timestamp_str = n.creation_time.astimezone().strftime("%H:%M")
@@ -249,65 +252,78 @@ class NotificationWidget(WidgetBase):
     def run(self) -> None:
         """Main loop — polls WinRT every 2 seconds, renders and pushes frames."""
         while True:
-            # Poll config updates
-            new_cfg = self.poll_config_update()
-            if new_cfg:
-                settings = new_cfg.get("settings", {})
-                self._font_name = settings.get("font", self._font_name)
-                self._auto_dismiss_seconds = settings.get(
-                    "auto_dismiss_seconds", self._auto_dismiss_seconds
-                )
-                self._blocked_apps = set(settings.get("blocked_apps", self._blocked_apps))
-
-            # Check permission
-            if not self._is_allowed():
-                frame = self._render_permission_placeholder()
+            try:
+                self._run_once()
+            except Exception as exc:  # noqa: BLE001
+                # Log the error and render idle so the subprocess keeps running.
+                # A crash here would be caught by the drain timer's is_alive() check
+                # and the slot would turn dark red — instead, stay alive and idle.
+                print(f"[NotificationWidget] error in poll cycle: {exc}", flush=True)
                 try:
+                    frame = self._render_idle()
                     self.out_queue.put(frame, block=False)
-                except queue.Full:
+                except Exception:  # noqa: BLE001
                     pass
-                time.sleep(2.0)
-                continue
+            time.sleep(2.0)  # Poll interval — 2 seconds per RESEARCH.md recommendation
 
-            # Fetch latest notification
-            latest = self._fetch_latest()
-            now = time.monotonic()
+    def _run_once(self) -> None:
+        """One iteration of the polling loop. Separated to allow targeted exception handling."""
+        # Poll config updates
+        new_cfg = self.poll_config_update()
+        if new_cfg:
+            settings = new_cfg.get("settings", {})
+            self._font_name = settings.get("font", self._font_name)
+            self._auto_dismiss_seconds = settings.get(
+                "auto_dismiss_seconds", self._auto_dismiss_seconds
+            )
+            self._blocked_apps = set(settings.get("blocked_apps", self._blocked_apps))
 
-            if latest is not None:
-                notif_id, app_name, title, body, ts = latest
-                if notif_id != self._last_notif_id:
-                    # New notification — update display and reset timer
-                    self._current_notif = (app_name, title, body, ts)
-                    self._last_notif_id = notif_id
-                    self._display_since = now
-                # else: same notification still active — no timer reset needed
-            else:
-                # No notifications (or all blocked) — if we were showing one that
-                # disappeared from Action Center, clear immediately
-                if self._current_notif is not None and self._last_notif_id is not None:
-                    self._current_notif = None
-                    self._last_notif_id = None
-
-            # Auto-dismiss check
-            if self._current_notif is not None:
-                elapsed = now - self._display_since
-                if elapsed > self._auto_dismiss_seconds:
-                    self._current_notif = None
-                    # Do NOT call remove_notification — per CONTEXT.md v1 decision
-                    # Action Center entry stays; bar just clears to idle
-
-            # Render
-            if self._current_notif is not None:
-                frame = self._render_notification(*self._current_notif)
-            else:
-                frame = self._render_idle()
-
+        # Check permission
+        if not self._is_allowed():
+            frame = self._render_permission_placeholder()
             try:
                 self.out_queue.put(frame, block=False)
             except queue.Full:
                 pass
+            return
 
-            time.sleep(2.0)  # Poll interval — 2 seconds per RESEARCH.md recommendation
+        # Fetch latest notification
+        latest = self._fetch_latest()
+        now = time.monotonic()
+
+        if latest is not None:
+            notif_id, app_name, title, body, ts = latest
+            if notif_id != self._last_notif_id:
+                # New notification — update display and reset timer
+                self._current_notif = (app_name, title, body, ts)
+                self._last_notif_id = notif_id
+                self._display_since = now
+            # else: same notification still active — no timer reset needed
+        else:
+            # No notifications (or all blocked) — if we were showing one that
+            # disappeared from Action Center, clear immediately
+            if self._current_notif is not None and self._last_notif_id is not None:
+                self._current_notif = None
+                self._last_notif_id = None
+
+        # Auto-dismiss check
+        if self._current_notif is not None:
+            elapsed = now - self._display_since
+            if elapsed > self._auto_dismiss_seconds:
+                self._current_notif = None
+                # Do NOT call remove_notification — per CONTEXT.md v1 decision
+                # Action Center entry stays; bar just clears to idle
+
+        # Render
+        if self._current_notif is not None:
+            frame = self._render_notification(*self._current_notif)
+        else:
+            frame = self._render_idle()
+
+        try:
+            self.out_queue.put(frame, block=False)
+        except queue.Full:
+            pass
 
 
 def run_notification_widget(widget_id: str, config: dict, out_queue, in_queue) -> None:
