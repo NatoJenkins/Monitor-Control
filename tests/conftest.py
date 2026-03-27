@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
+from PyQt6.QtWidgets import QApplication
 
 
 def _make_qrect(x, y, w, h):
@@ -29,6 +30,15 @@ def mock_screen_display3():
     screen.geometry.return_value = _make_qrect(3840, 0, 1536, 412)
     screen.devicePixelRatio.return_value = 1.25
     return screen
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """Create QApplication for tests that need Qt widgets."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    return app
 
 
 @pytest.fixture
