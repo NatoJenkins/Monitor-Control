@@ -91,10 +91,10 @@ def find_target_screen(phys_width: int = 1920, phys_height: int = 515):
 def place_on_screen(window, screen):
     """Place window on target screen. Call AFTER flags set, BEFORE show.
 
-    Uses create() to force native HWND so windowHandle() is non-None,
-    then setScreen + move + showFullScreen for reliable placement.
+    Sets geometry explicitly to the target screen's rect, then calls show().
+    Avoids showFullScreen() which uses MonitorFromWindow internally and can
+    pick the wrong display when the target screen sits below the primary
+    monitors (e.g. an HDMI strip at y=1440 on the virtual-desktop boundary).
     """
-    window.create()  # force native window creation
-    window.windowHandle().setScreen(screen)
-    window.move(screen.geometry().topLeft())
-    window.showFullScreen()
+    window.setGeometry(screen.geometry())
+    window.show()

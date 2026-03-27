@@ -43,29 +43,26 @@ class TestWindowPlacement:
     """HOST-01: place_on_screen positions window on target screen."""
 
     def test_window_placement(self, qapp_instance):
-        """place_on_screen must call move(screen.geometry().topLeft()) and showFullScreen()."""
+        """place_on_screen must call setGeometry(screen.geometry()) then show().
+
+        Uses explicit geometry instead of showFullScreen() to avoid MonitorFromWindow
+        picking the wrong display when the HDMI strip sits on the virtual-desktop boundary.
+        """
         from host.window import HostWindow
         from host.win32_utils import place_on_screen
 
         window = HostWindow()
 
         mock_screen = MagicMock()
-        mock_rect = MagicMock()
-        mock_top_left = MagicMock()
-        mock_screen.geometry.return_value = mock_rect
-        mock_rect.topLeft.return_value = mock_top_left
+        mock_geo = MagicMock()
+        mock_screen.geometry.return_value = mock_geo
 
-        mock_handle = MagicMock()
-
-        with patch.object(window, "create"), \
-             patch.object(window, "windowHandle", return_value=mock_handle), \
-             patch.object(window, "move") as mock_move, \
-             patch.object(window, "showFullScreen") as mock_show_full:
+        with patch.object(window, "setGeometry") as mock_set_geo, \
+             patch.object(window, "show") as mock_show:
             place_on_screen(window, mock_screen)
 
-        mock_handle.setScreen.assert_called_once_with(mock_screen)
-        mock_move.assert_called_once_with(mock_top_left)
-        mock_show_full.assert_called_once()
+        mock_set_geo.assert_called_once_with(mock_geo)
+        mock_show.assert_called_once()
 
         # Cleanup
         window.hide()
