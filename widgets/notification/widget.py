@@ -61,6 +61,24 @@ class NotificationWidget(WidgetBase):
         listener, status_enum = self._get_winrt_listener()
         return listener.get_access_status() == status_enum.ALLOWED
 
+    @staticmethod
+    def _safe_app_name(n) -> str:
+        """Extract app display name from a UserNotification, falling back on any WinRT error.
+
+        Some system/legacy notifications have app_info.display_info properties that
+        raise E_NOTIMPL (0x80004001) when accessed — guard every level individually.
+        """
+        try:
+            if n.app_info is None:
+                return "Unknown"
+            display_info = n.app_info.display_info
+            if display_info is None:
+                return "Unknown"
+            name = display_info.display_name
+            return name if name else "Unknown"
+        except Exception:
+            return "Unknown"
+
     def _fetch_latest(self) -> tuple | None:
         """Poll WinRT for the most recent toast notification. Returns (id, app_name, title, body, ts) or None."""
         if not self._is_allowed():
@@ -74,11 +92,11 @@ class NotificationWidget(WidgetBase):
 
         notifs = asyncio.run(_fetch())
 
-        # Filter blocked apps
+        # Filter blocked apps — guard display_info access per-notification;
+        # some system/legacy notifications raise E_NOTIMPL on .display_info.display_name.
         filtered = [
             n for n in notifs
-            if (n.app_info.display_info.display_name if n.app_info else "Unknown")
-            not in self._blocked_apps
+            if self._safe_app_name(n) not in self._blocked_apps
         ]
 
         if not filtered:
@@ -87,18 +105,23 @@ class NotificationWidget(WidgetBase):
         # Select most recent by creation_time
         n = max(filtered, key=lambda x: x.creation_time)
 
-        # Extract app name
-        app_name = n.app_info.display_info.display_name if n.app_info else "Unknown"
+        app_name = self._safe_app_name(n)
 
-        # Extract title and body from toast binding
-        # 04-01 spike confirmed: use get_binding("ToastGeneric") string form
-        binding = n.notification.visual.get_binding("ToastGeneric")
-        # Convert WinRT IVectorView to a plain Python list before indexing;
-        # IVectorView does not support len() reliably in winrt 3.2.1.
-        # Guard each element's .text against None (empty toast nodes send None).
-        text_elements = list(binding.get_text_elements()) if binding else []
-        title = (text_elements[0].text or "") if len(text_elements) > 0 else ""
-        body = (text_elements[1].text or "") if len(text_elements) > 1 else ""
+        # Extract title and body from toast binding.
+        # 04-01 spike confirmed: use get_binding("ToastGeneric") string form.
+        # Guard binding + text access — non-ToastGeneric notifications (legacy templates,
+        # system alerts) may raise E_NOTIMPL on .visual or .get_binding().
+        try:
+            binding = n.notification.visual.get_binding("ToastGeneric")
+            # Convert WinRT IVectorView to a plain Python list before indexing;
+            # IVectorView does not support len() reliably in winrt 3.2.1.
+            # Guard each element's .text against None (empty toast nodes send None).
+            text_elements = list(binding.get_text_elements()) if binding else []
+            title = (text_elements[0].text or "") if len(text_elements) > 0 else ""
+            body = (text_elements[1].text or "") if len(text_elements) > 1 else ""
+        except Exception:
+            title = ""
+            body = ""
 
         # Format timestamp — creation_time is Python datetime (UTC-aware) per 04-01 spike
         timestamp_str = n.creation_time.astimezone().strftime("%H:%M")
