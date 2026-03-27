@@ -2,7 +2,7 @@
 import json
 from unittest.mock import patch
 import pytest
-from PyQt6.QtWidgets import QMainWindow, QTabWidget, QSpinBox, QComboBox, QPushButton, QLineEdit
+from PyQt6.QtWidgets import QMainWindow, QTabWidget, QSpinBox, QComboBox, QPushButton, QLineEdit, QCheckBox
 
 
 # ---------------------------------------------------------------------------
@@ -307,4 +307,86 @@ def test_send_pomo_command_writes_file(qapp, tmp_path):
         args = mock_write.call_args[0]
         assert args[1] == "start"
 
+    window.close()
+
+
+# ---------------------------------------------------------------------------
+# Startup tab tests (Wave 0 — RED until Task 2 adds _build_startup_tab)
+# ---------------------------------------------------------------------------
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_startup_tab_checkbox_exists(mock_enabled, qapp, tmp_path):
+    """Startup tab has a QCheckBox instance at _autostart_checkbox."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    assert isinstance(window._autostart_checkbox, QCheckBox)
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=True)
+def test_startup_label_visible_when_checked(mock_enabled, qapp, tmp_path):
+    """Status label is visible when autostart is enabled (registry returns True)."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    assert window._autostart_label.isVisible() is True
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_startup_label_hidden_when_unchecked(mock_enabled, qapp, tmp_path):
+    """Status label is hidden when autostart is disabled (registry returns False)."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    assert window._autostart_label.isVisible() is False
+    window.close()
+
+
+@patch("control_panel.autostart.enable_autostart")
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_startup_toggle_calls_enable(mock_enabled, mock_enable, qapp, tmp_path):
+    """Checking the checkbox calls enable_autostart()."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    window._autostart_checkbox.setChecked(True)
+    mock_enable.assert_called_once()
+    window.close()
+
+
+@patch("control_panel.autostart.disable_autostart")
+@patch("control_panel.autostart.is_autostart_enabled", return_value=True)
+def test_startup_toggle_calls_disable(mock_enabled, mock_disable, qapp, tmp_path):
+    """Unchecking the checkbox calls disable_autostart()."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    window._autostart_checkbox.setChecked(False)
+    mock_disable.assert_called_once()
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_startup_tab_present(mock_enabled, qapp, tmp_path):
+    """QTabWidget has 6 tabs with 'Startup' as the last (index 5)."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    tabs = window._tabs
+    assert tabs.count() == 6
+    assert tabs.tabText(5) == "Startup"
     window.close()
