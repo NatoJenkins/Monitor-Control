@@ -4,26 +4,27 @@ milestone: v1.0
 milestone_name: milestone
 current_plan: 2 / 2 (COMPLETE)
 status: unknown
-last_updated: "2026-03-27T02:33:38.930Z"
+last_updated: "2026-03-27T03:38:30.534Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 2 complete; Phase 3 (Pomodoro + Calendar widgets) is next
+`IN_PROGRESS` — Phase 3 Plan 01 complete; Phase 3 Plan 02 next
 
 ## Current Phase
-Phase 2 — Config System + Control Panel
-Current Plan: 2 / 2 (COMPLETE)
+Phase 3 — Pomodoro + Calendar Widgets
+Current Plan: 1 / 2 (COMPLETE)
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
 [##########] Phase 2 complete — hardware verified (2/2 plans)
+[█████░░░░░] Phase 3 in progress (1/2 plans complete)
 
 ## Milestone
 v1.0 — initial release
@@ -33,13 +34,13 @@ v1.0 — initial release
 - Phase 2 — Config System + Control Panel (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 2 Plan 02: hardware verification passed. Double-save test confirmed two hot-reload log lines (QFileSystemWatcher re-add pattern working). Widget add/remove lifecycle correct. Added flush=True logging to ConfigLoader (b30f97d) so reloads are observable in host console.
+2026-03-26 — Completed Phase 3 Plan 01: PomodoroWidget (IDLE/WORK/SHORT_BREAK/LONG_BREAK state machine, monotonic countdown, Pillow rendering) and CalendarWidget (12h/24h format, day-of-week date, 1Hz push) both implemented. ControlSignal added to IPC schema. config.json replaced dummy with pomodoro+calendar. 70 unit tests passing. Fonts bundled (Inter, ShareTechMono; Digital-7 unavailable, using fallback).
 
 ## Stopped At
-Phase 2 — 02-02-PLAN.md fully complete (hardware verified)
+Phase 3 — 03-01-PLAN.md fully complete (unit tests verified, hardware verification pending)
 
 ## Next Action
-Begin Phase 3 — Pomodoro widget and Calendar widget implementation.
+Execute Phase 3 Plan 02 — hardware verification of Pomodoro + Calendar widgets on Display 3.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -72,6 +73,10 @@ Begin Phase 3 — Pomodoro widget and Calendar widget implementation.
 18. **Temp file in same directory as target** — tempfile.mkstemp(dir=same_dir) ensures os.replace stays on same filesystem, avoiding cross-device rename errors on Windows. (02-02)
 19. **_update_widget_settings does NOT auto-create widget entries** — Phase 3 adds Pomodoro/Calendar to config.json; panel only updates settings for existing entries. (02-02)
 20. **qapp fixture is session-scoped** — Avoids creating multiple QApplication instances across test session (Qt enforces singleton). (02-02)
+- [Phase 03]: PomodoroState uses time.monotonic() deadline for drift-free countdown — avoids accumulated sleep drift over long sessions. (03-01)
+- [Phase 03]: Config duration updates deferred to _apply_pending_durations() at _transition_to() — current countdown unaffected by mid-session config changes. (03-01)
+- [Phase 03]: CalendarWidget uses WidgetBase.poll_config_update() not custom _poll_in_queue() — no ControlSignal needed for clock widget. (03-01)
+- [Phase 03]: Digital-7.ttf not bundled — unavailable on public GitHub; both widgets fall back to ImageFont.load_default() without crash. (03-01)
 
 ## Blockers
 None
@@ -90,3 +95,5 @@ None
 | 01 | 03 | 1800 | 3/3 | 14 |
 | 02 | 01 | 331 | 2/2 | 10 |
 | 02 | 02 | 1800 | 2/2 | 8 |
+| 03 | 01 | 360 | 3/3 | 15 |
+

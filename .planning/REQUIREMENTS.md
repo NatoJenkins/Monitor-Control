@@ -36,17 +36,17 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 
 ### Pomodoro Widget
 
-- [ ] **POMO-01**: Pomodoro widget runs as an isolated subprocess implementing `WidgetBase`; it renders to RGBA bytes via Pillow and pushes `FrameData` to the host queue
-- [ ] **POMO-02**: Pomodoro implements a full state machine: IDLE → WORK → SHORT_BREAK → LONG_BREAK → WORK, with auto-advance at countdown zero and cycle counting for long-break promotion
-- [ ] **POMO-03**: Pomodoro displays the current phase label (Focus / Short Break / Long Break) and a MM:SS countdown, updated every second
+- [x] **POMO-01**: Pomodoro widget runs as an isolated subprocess implementing `WidgetBase`; it renders to RGBA bytes via Pillow and pushes `FrameData` to the host queue
+- [x] **POMO-02**: Pomodoro implements a full state machine: IDLE → WORK → SHORT_BREAK → LONG_BREAK → WORK, with auto-advance at countdown zero and cycle counting for long-break promotion
+- [x] **POMO-03**: Pomodoro displays the current phase label (Focus / Short Break / Long Break) and a MM:SS countdown, updated every second
 - [ ] **POMO-04**: Pomodoro responds to control signals (start, pause, reset) sent from the host/control panel via a second inbound queue
-- [ ] **POMO-05**: Work duration, short break duration, long break duration, and cycles-before-long-break are all configurable via `config.json` and applied on CONFIG_UPDATE without restarting the widget process
+- [x] **POMO-05**: Work duration, short break duration, long break duration, and cycles-before-long-break are all configurable via `config.json` and applied on CONFIG_UPDATE without restarting the widget process
 
 ### Calendar Widget
 
-- [ ] **CAL-01**: Calendar widget runs as an isolated subprocess implementing `WidgetBase`; it renders the current local time and date to RGBA bytes via Pillow and pushes `FrameData` at a 1-second interval
-- [ ] **CAL-02**: Calendar displays day of week, full date (locale-aware format), and time in either 12h or 24h format as configured in `config.json`
-- [ ] **CAL-03**: Clock format (12h/24h) is configurable via the control panel and applied on CONFIG_UPDATE without restarting the widget process
+- [x] **CAL-01**: Calendar widget runs as an isolated subprocess implementing `WidgetBase`; it renders the current local time and date to RGBA bytes via Pillow and pushes `FrameData` at a 1-second interval
+- [x] **CAL-02**: Calendar displays day of week, full date (locale-aware format), and time in either 12h or 24h format as configured in `config.json`
+- [x] **CAL-03**: Clock format (12h/24h) is configurable via the control panel and applied on CONFIG_UPDATE without restarting the widget process
 
 ### Notification Interceptor
 
@@ -116,14 +116,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTRL-01 | Phase 2 | Complete |
 | CTRL-02 | Phase 2 | Complete |
 | CTRL-03 | Phase 2 | Complete |
-| POMO-01 | Phase 3 | Pending |
-| POMO-02 | Phase 3 | Pending |
-| POMO-03 | Phase 3 | Pending |
+| POMO-01 | Phase 3 | Complete |
+| POMO-02 | Phase 3 | Complete |
+| POMO-03 | Phase 3 | Complete |
 | POMO-04 | Phase 3 | Pending |
-| POMO-05 | Phase 3 | Pending |
-| CAL-01 | Phase 3 | Pending |
-| CAL-02 | Phase 3 | Pending |
-| CAL-03 | Phase 3 | Pending |
+| POMO-05 | Phase 3 | Complete |
+| CAL-01 | Phase 3 | Complete |
+| CAL-02 | Phase 3 | Complete |
+| CAL-03 | Phase 3 | Complete |
 | NOTF-01 | Phase 4 | Pending |
 | NOTF-02 | Phase 4 | Pending |
 | NOTF-03 | Phase 4 | Pending |
