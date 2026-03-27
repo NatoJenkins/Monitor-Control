@@ -467,24 +467,27 @@ def test_run_once_exception_does_not_kill_subprocess():
 
     call_count = [0]
 
+    class _StopTestLoop(BaseException):
+        """Custom sentinel — avoids Windows CTRL+C / pytest signal interception of KeyboardInterrupt."""
+
     def boom():
         call_count[0] += 1
         if call_count[0] == 1:
             raise RuntimeError("simulated WinRT error")
-        # Second call: succeed normally (push idle frame), then break via KeyboardInterrupt
-        # which is a BaseException (not caught by 'except Exception') so the loop exits.
+        # Second call: succeed normally, then stop the loop via a custom BaseException
+        # (not caught by 'except Exception') so the loop exits cleanly.
         frame = w._render_idle()
         try:
             w.out_queue.put(frame, block=False)
         except queue.Full:
             pass
-        raise KeyboardInterrupt("test sentinel")
+        raise _StopTestLoop
 
     with unittest.mock.patch.object(w, "_run_once", side_effect=boom):
         with unittest.mock.patch("time.sleep"):  # skip actual sleep
             try:
                 w.run()
-            except KeyboardInterrupt:
+            except _StopTestLoop:
                 pass
 
     # If the loop survived past the first exception, call_count > 1
