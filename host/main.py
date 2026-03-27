@@ -1,6 +1,9 @@
 import sys
+import os
+import json
 import multiprocessing
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QFileSystemWatcher
 from host.window import HostWindow
 from host.win32_utils import (
     find_target_screen, place_on_screen,
@@ -55,6 +58,32 @@ def main():
     config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)
     config = config_loader.load()
     config_loader.apply_config(config)
+
+    # --- Command-file watcher for Pomodoro controls (POMO-04) ---
+    config_dir = os.path.dirname(os.path.abspath("config.json"))
+    cmd_path = os.path.join(config_dir, "pomodoro_command.json")
+
+    cmd_watcher = QFileSystemWatcher()
+    # Watch the directory so we catch file creation (not just modification)
+    cmd_watcher.addPath(config_dir)
+
+    def _on_cmd_dir_changed(path: str):
+        """Check if pomodoro_command.json appeared or changed."""
+        if not os.path.exists(cmd_path):
+            return
+        try:
+            with open(cmd_path, encoding="utf-8") as f:
+                data = json.load(f)
+            command = data.get("cmd")
+            if command in ("start", "pause", "reset"):
+                pm.send_control_signal("pomodoro", command)
+                print(f"[CommandWatcher] forwarded '{command}' to pomodoro", flush=True)
+            os.unlink(cmd_path)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"[CommandWatcher] error: {exc}", flush=True)
+
+    cmd_watcher.directoryChanged.connect(_on_cmd_dir_changed)
+    window._cmd_watcher = cmd_watcher  # prevent GC
 
     # Start drain timer — polls all queues at 50ms, updates compositor
     drain_timer = QueueDrainTimer(pm, window.compositor, interval_ms=50)

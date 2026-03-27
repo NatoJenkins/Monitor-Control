@@ -47,3 +47,25 @@ def atomic_write_config(path: str, data: dict) -> None:
         except OSError:
             pass
         raise
+
+
+def write_pomodoro_command(config_dir: str, command: str) -> None:
+    """Write a Pomodoro control command atomically.
+
+    Writes {"cmd": command} to pomodoro_command.json in config_dir.
+    The host's QFileSystemWatcher picks up the change, forwards it
+    as a ControlSignal, and deletes the file.
+    """
+    cmd_path = os.path.join(os.path.abspath(config_dir), "pomodoro_command.json")
+    dir_path = os.path.dirname(cmd_path)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"cmd": command}, f)
+        os.replace(tmp_path, cmd_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
