@@ -88,7 +88,7 @@ Plans:
 - [ ] 03-02-PLAN.md — Command-file IPC watcher, control panel extensions (Pomodoro controls, font selectors, accent colors, shortcuts), hardware verification
 
 ### Phase 4: Notification Interceptor
-**Goal**: Windows toast notifications are read from the Action Center, surfaced in the notification slot with title/body/app name, and dismissible from the bar
+**Goal**: Windows toast notifications are read from the Action Center, surfaced in the notification slot with title/body/app name, and auto-dismissed after a configurable timeout
 **Depends on**: Phase 3
 **Requirements**: NOTF-01, NOTF-02, NOTF-03, NOTF-04, NOTF-05
 
@@ -110,11 +110,11 @@ Before building the complete notification widget, validate in a standalone scrip
   4. When notification access is denied, the notification slot shows a "permission required" placeholder instead of a blank or crashing slot
   5. The `winsdk` package is not installed; all WinRT calls use `winrt-Windows.UI.Notifications.Management==3.2.1` and `winrt-runtime==3.2.1` pinned to the same minor version
 
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: WinRT spike — standalone subprocess asyncio/STA validation; GetAccessStatus and polling vs event subscription
-- [ ] 04-02: Host-side RequestAccessAsync one-time setup; notification widget subprocess with GetAccessStatus check, polling loop, FrameData push, dismiss action
+- [ ] 04-01-PLAN.md — WinRT spike: install winrt packages, create standalone subprocess asyncio/STA validation script, notification widget package skeleton
+- [ ] 04-02-PLAN.md — NotificationWidget (Pillow rendering, polling, auto-dismiss, blocklist), host RequestAccessAsync integration, control panel Notification tab, config.json entry, hardware verification
 
 ---
 
@@ -132,4 +132,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-26 after Phase 3 planning complete*
+*Last updated: 2026-03-26 after Phase 4 planning complete*
