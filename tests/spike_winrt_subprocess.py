@@ -73,9 +73,10 @@ def _subprocess_spike(result_queue):
                 results["app_name_ok"] = False
                 results["app_name_error"] = str(e)
             # Extract text elements
+            # Note: KnownNotificationBindings.TOAST_GENERIC constant does not exist in
+            # winrt-Windows.UI.Notifications==3.2.1; use the string "ToastGeneric" directly.
             try:
-                from winrt.windows.ui.notifications import KnownNotificationBindings
-                binding = n.notification.visual.get_binding(KnownNotificationBindings.TOAST_GENERIC)
+                binding = n.notification.visual.get_binding("ToastGeneric")
                 if binding:
                     elements = binding.get_text_elements()
                     results["text_element_count"] = len(elements) if elements else 0
@@ -87,7 +88,7 @@ def _subprocess_spike(result_queue):
                         results["text_extract_note"] = "No text elements in binding"
                 else:
                     results["text_extract_ok"] = False
-                    results["binding"] = "None (no TOAST_GENERIC binding)"
+                    results["binding"] = "None (no ToastGeneric binding)"
             except Exception as e:
                 results["text_extract_ok"] = False
                 results["text_extract_error"] = str(e)
@@ -130,11 +131,20 @@ if __name__ == "__main__":
 
     # --- Spike 1: Host-side RequestAccessAsync ---
     print("[Host] Calling RequestAccessAsync()...")
+    host_allowed = False
     try:
+        from winrt.windows.ui.notifications.management import (
+            UserNotificationListener,
+            UserNotificationListenerAccessStatus,
+        )
         host_status = asyncio.run(_request_notification_access())
-        host_status_str = str(host_status)
+        host_allowed = (host_status == UserNotificationListenerAccessStatus.ALLOWED)
+        host_status_str = "ALLOWED" if host_allowed else (
+            "DENIED" if host_status == UserNotificationListenerAccessStatus.DENIED
+            else "UNSPECIFIED"
+        )
         print(f"[Host] RequestAccessAsync status: {host_status_str}")
-        if "ALLOWED" not in host_status_str.upper():
+        if not host_allowed:
             print("[Host] WARNING: Permission not ALLOWED — subprocess spike will still run to "
                   "validate asyncio.run compatibility, but GetAccessStatus may not be ALLOWED.")
     except Exception as e:
@@ -171,15 +181,14 @@ if __name__ == "__main__":
     print()
     print("=== WinRT Subprocess Spike Results ===")
 
-    access_status = results.get("access_status", "UNKNOWN")
     access_allowed = results.get("access_allowed", False)
+    access_status_str = "ALLOWED" if access_allowed else "NOT ALLOWED"
 
     # Determine match between host and subprocess
-    host_allowed = "ALLOWED" in host_status_str.upper()
     match_str = "yes" if (host_allowed == access_allowed) else "no"
 
     print(f"Host RequestAccessAsync:        {host_status_str}")
-    print(f"Subprocess GetAccessStatus:     {access_status} (matches host: {match_str})")
+    print(f"Subprocess GetAccessStatus:     {access_status_str} (matches host: {match_str})")
 
     asyncio_ok = results.get("asyncio_run_ok", False)
     asyncio_status = "OK" if asyncio_ok else f"FAILED ({results.get('asyncio_error', 'unknown')})"
