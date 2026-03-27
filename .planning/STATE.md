@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Startup & Distribution
-current_plan: —
-status: ready_to_plan
-last_updated: "2026-03-27T00:00:00.000Z"
+current_plan: "05-01"
+status: in_progress
+last_updated: "2026-03-27T07:31:00.000Z"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 1
+  completed_plans: 1
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 5 of 7 (Path Resolution & Freeze Safety)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-27 — v1.1 roadmap created (Phases 5–7)
+Plan: 1 of 1 in current phase (COMPLETE)
+Status: Phase 5 complete — ready for Phase 6
+Last activity: 2026-03-27 — Phase 5 Plan 01 executed (path resolution + null-guard)
 
-Progress: [░░░░░░░░░░] 0% (v1.1 — 0/3 phases complete)
+Progress: [███░░░░░░░] 33% (v1.1 — 1/3 phases complete)
 
 ## Performance Metrics
 
@@ -57,6 +57,8 @@ Progress: [░░░░░░░░░░] 0% (v1.1 — 0/3 phases complete)
 - [v1.0]: proc.terminate() without join() is deliberate — join() deadlocks Qt main thread on Windows queue drain
 - [v1.1]: Autostart via HKCU Run key (winreg stdlib), not Task Scheduler — simpler, appears in Windows Settings, no invisible-window BLOCKER risk
 - [v1.1]: PyInstaller --onedir (not --onefile) — faster startup, no AV temp-extraction, multiprocessing-compatible
+- [v1.1 Phase 5]: get_config_path() uses _PROJECT_ROOT = Path(__file__).resolve().parent.parent — cwd-independent, works under pythonw.exe, HKCU Run key, and PyInstaller
+- [v1.1 Phase 5]: Null-guard placed before ALL imports in host/main.py — no window where print() can crash before stdout is safe
 
 ### Pending Todos
 
@@ -65,12 +67,11 @@ None.
 ### Blockers/Concerns
 
 - [v1.0 carry]: IPC-03 spec language needs amendment — proc.terminate() design is deliberate but undocumented
-- [v1.1 Phase 5]: Both entry points currently use bare "config.json" resolving from cwd — must fix before any packaging work
-- [v1.1 Phase 5]: sys.stdout/stderr are None under pythonw.exe — any print() call crashes; null-guard required before console=False
 - [v1.1 Phase 7]: winrt-* 3.2.1 has no PyInstaller community hooks — host packaging (v2) will need collect_submodules("winrt") iteration
+- [v1.1 carry]: test_e2e_dummy::test_dummy_frame_received is a flaky integration test (pre-existing failure, unrelated to Phase 5)
 
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: v1.1 roadmap created; Phase 5 ready to plan
+Stopped at: Completed 05-01-PLAN.md (Phase 5 Plan 01 — path resolution & null-guard)
 Resume file: None

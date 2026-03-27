@@ -17,8 +17,8 @@ Requirements for v1.1 Startup & Distribution milestone. Each maps to roadmap pha
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Host and control panel resolve config.json relative to script/executable directory (not process cwd) — prerequisite for autostart and packaging both working correctly
-- [ ] **INFRA-02**: Host does not crash when launched without a console window (print() calls null-guarded for pythonw.exe context)
+- [x] **INFRA-01**: Host and control panel resolve config.json relative to script/executable directory (not process cwd) — prerequisite for autostart and packaging both working correctly
+- [x] **INFRA-02**: Host does not crash when launched without a console window (print() calls null-guarded for pythonw.exe context)
 
 ### Packaging
 
@@ -61,8 +61,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 5 | Pending |
-| INFRA-02 | Phase 5 | Pending |
+| INFRA-01 | Phase 5 | Complete (2026-03-27) |
+| INFRA-02 | Phase 5 | Complete (2026-03-27) |
 | STRT-01 | Phase 6 | Pending |
 | STRT-02 | Phase 6 | Pending |
 | STRT-03 | Phase 6 | Pending |
@@ -80,4 +80,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after v1.1 roadmap created (Phases 5–7)*
+*Last updated: 2026-03-27 after Phase 5 execution (INFRA-01, INFRA-02 complete)*

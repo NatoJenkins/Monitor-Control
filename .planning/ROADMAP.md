@@ -23,7 +23,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 **Milestone Goal:** Make MonitorControl feel like finished software — autostart on login and a distributable control panel .exe.
 
-- [ ] **Phase 5: Path Resolution & Freeze Safety** - Fix config path resolution and console-null-guard so both entry points work from any launch context
+- [x] **Phase 5: Path Resolution & Freeze Safety** - Fix config path resolution and console-null-guard so both entry points work from any launch context (completed 2026-03-27)
 - [ ] **Phase 6: Autostart Toggle** - Control panel Startup tab that reads/writes HKCU Run key to enable host autostart at Windows login
 - [ ] **Phase 7: Control Panel Packaging** - PyInstaller --onedir --noconsole build producing a standalone MonitorControl.exe
 
@@ -40,7 +40,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Plans:** 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — TDD: shared/paths.py + startup null-guard + entry point updates
+- [x] 05-01-PLAN.md — TDD: shared/paths.py + startup null-guard + entry point updates (completed 2026-03-27)
 
 ### Phase 6: Autostart Toggle
 **Goal**: Users can enable and disable host autostart at Windows login from the control panel, with no terminal visible at launch
@@ -80,10 +80,10 @@ Plans:
 | 2. Config System + Control Panel | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 3. Pomodoro + Calendar Widgets | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 4. Notification Interceptor | v1.0 | 2/2 | Complete | 2026-03-27 |
-| 5. Path Resolution & Freeze Safety | v1.1 | 0/1 | In progress | - |
+| 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 6. Autostart Toggle | v1.1 | 0/? | Not started | - |
 | 7. Control Panel Packaging | v1.1 | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 after Phase 5 planning complete (1 plan)*
+*Last updated: 2026-03-27 after Phase 5 execution complete (1/1 plans)*
