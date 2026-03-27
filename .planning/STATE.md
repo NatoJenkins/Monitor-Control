@@ -1,30 +1,31 @@
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 2 plan 2 implementation complete; awaiting hardware verification checkpoint
+`IN_PROGRESS` — Phase 2 complete; Phase 3 (Pomodoro + Calendar widgets) is next
 
 ## Current Phase
 Phase 2 — Config System + Control Panel
-Current Plan: 2 / 2
+Current Plan: 2 / 2 (COMPLETE)
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
-[##########] Phase 2 implementation complete; awaiting hardware verify (2/2 plans)
+[##########] Phase 2 complete — hardware verified (2/2 plans)
 
 ## Milestone
 v1.0 — initial release
 
 ## Completed Phases
 - Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
+- Phase 2 — Config System + Control Panel (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 2 Plan 02 Task 1: control_panel package with atomic config I/O (tempfile.mkstemp + os.replace), ControlPanelWindow QMainWindow (Layout/Pomodoro/Calendar tabs), 14 new tests, 50 total pass. Stopped at Task 2 hardware verify checkpoint.
+2026-03-26 — Completed Phase 2 Plan 02: hardware verification passed. Double-save test confirmed two hot-reload log lines (QFileSystemWatcher re-add pattern working). Widget add/remove lifecycle correct. Added flush=True logging to ConfigLoader (b30f97d) so reloads are observable in host console.
 
 ## Stopped At
-Phase 2 — completed 02-02-PLAN.md Task 1 (implementation); paused at Task 2 (checkpoint:human-verify — hardware verification of hot-reload and control panel end-to-end)
+Phase 2 — 02-02-PLAN.md fully complete (hardware verified)
 
 ## Next Action
-User hardware verification: (1) start host + control panel, (2) double-save test for QFileSystemWatcher re-add, (3) widget add/remove test. After approval, Phase 2 is complete.
+Begin Phase 3 — Pomodoro widget and Calendar widget implementation.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -74,4 +75,4 @@ None
 | 01 | 02 | 124 | 2/2 | 3 |
 | 01 | 03 | 1800 | 3/3 | 14 |
 | 02 | 01 | 331 | 2/2 | 10 |
-| 02 | 02 | 120 | 1/2 | 7 |
+| 02 | 02 | 1800 | 2/2 | 8 |
