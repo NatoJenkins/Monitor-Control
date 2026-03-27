@@ -10,6 +10,7 @@ _user32 = ctypes.windll.user32
 WM_WTSSESSION_CHANGE = 0x02B1
 WTS_SESSION_UNLOCK = 0x8
 WTS_SESSION_LOCK = 0x7
+WM_ACTIVATEAPP = 0x001C
 
 
 class RECT(ctypes.Structure):
@@ -68,6 +69,8 @@ class Win32MessageFilter(QAbstractNativeEventFilter):
                 if msg.wParam == WTS_SESSION_UNLOCK:
                     self._on_clip_needed()
             elif msg.message == win32con.WM_DISPLAYCHANGE:
+                self._on_clip_needed()
+            elif msg.message == WM_ACTIVATEAPP and msg.wParam:
                 self._on_clip_needed()
         return False, 0
 

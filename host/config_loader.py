@@ -13,10 +13,11 @@ def register_widget_type(type_name: str, target_fn) -> None:
 
 
 class ConfigLoader:
-    def __init__(self, path: str, process_manager, compositor):
+    def __init__(self, path: str, process_manager, compositor, after_reload=None):
         self._path = os.path.abspath(path)
         self._pm = process_manager
         self._compositor = compositor
+        self._after_reload = after_reload
         self._current: dict = {}
 
         self._debounce = QTimer()
@@ -71,6 +72,8 @@ class ConfigLoader:
         old_config = self._current
         self._current = new_config
         self._reconcile(old_config, new_config)
+        if self._after_reload:
+            self._after_reload()
 
     def _reconcile(self, old_config: dict, new_config: dict) -> None:
         old_widgets = {w["id"]: w for w in old_config.get("widgets", [])}

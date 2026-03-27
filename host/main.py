@@ -50,7 +50,7 @@ def main():
     register_widget_type("dummy", run_dummy_widget)
 
     pm = ProcessManager()
-    config_loader = ConfigLoader("config.json", pm, window.compositor)
+    config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)
     config = config_loader.load()
     config_loader.apply_config(config)
 
