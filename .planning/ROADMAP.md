@@ -54,7 +54,7 @@ Plans:
 **Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 06-01-PLAN.md — Registry module + launcher script + Startup tab with live HKCU toggle
+- [x] 06-01-PLAN.md — Registry module + launcher script + Startup tab with live HKCU toggle
 
 ### Phase 7: Control Panel Packaging
 **Goal**: The control panel runs as a standalone .exe on any Windows machine with no Python environment required
@@ -65,10 +65,10 @@ Plans:
   2. MonitorControl.exe shows no terminal or console window on launch
   3. MonitorControl.exe displays a custom .ico application icon in Windows Explorer and Task Manager (not the generic Python icon)
   4. Running `pyinstaller build/control_panel.spec` from the project root reproduces the distributable build from a clean checkout
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — PyInstaller spec + icon + null-guard + build producing MonitorControl.exe
 
 ## Progress
 
@@ -81,9 +81,9 @@ Plans:
 | 3. Pomodoro + Calendar Widgets | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 4. Notification Interceptor | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
-| 6. Autostart Toggle | 1/1 | Complete   | 2026-03-27 | - |
-| 7. Control Panel Packaging | v1.1 | 0/? | Not started | - |
+| 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
+| 7. Control Panel Packaging | v1.1 | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 after Phase 6 planning (1 plan created)*
+*Last updated: 2026-03-27 after Phase 7 planning (1 plan created)*
