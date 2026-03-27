@@ -1,395 +1,465 @@
 # Architecture Research
 
-**Domain:** Python desktop widget bar — host-renders / widget-pushes-data on Windows
-**Researched:** 2026-03-26
-**Confidence:** HIGH (core architecture), MEDIUM (notification interception), LOW (notification suppression)
+**Domain:** Python desktop widget bar — autostart and standalone .exe packaging for Windows
+**Researched:** 2026-03-27
+**Confidence:** HIGH (Task Scheduler and registry approaches), HIGH (PyInstaller one-folder), MEDIUM (PyInstaller winrt hidden imports), HIGH (path resolution patterns)
 
-## Standard Architecture
+---
 
-### System Overview
+## Context: What Is Already Built
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  CONTROL PANEL PROCESS  (PyQt6 window, user-visible, any monitor)       │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │  ControlPanel (QMainWindow)  ─── reads/writes ──► config.json   │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────┬──────────────────────────────────────────────┘
-                           │  writes config.json
-                           ▼
-                     [ config.json ]  ◄── watched by host
-                           │
-┌──────────────────────────▼──────────────────────────────────────────────┐
-│  HOST PROCESS  (main Python process / PyQt6 event loop)                 │
-│                                                                         │
-│  ┌──────────────┐   ┌────────────────┐   ┌─────────────────────────┐   │
-│  │ ConfigLoader │   │  ProcessManager│   │   HostWindow            │   │
-│  │ /Watcher     │──►│  (spawn/stop   │   │   (QWidget, borderless, │   │
-│  │(QFileSystem  │   │   widget procs)│   │    always-on-top,       │   │
-│  │  Watcher)    │   └───────┬────────┘   │    Display 3, 1920x515) │   │
-│  └──────────────┘           │            │                         │   │
-│         │                   │            │   ┌─────────────────┐   │   │
-│         │ layout/config     │ owns       │   │  Compositor     │   │   │
-│         └───────────────────┤            │   │  (paintEvent /  │   │   │
-│                             │            │   │   QPainter)     │   │   │
-│                   multiprocessing.Queue  │   └────────┬────────┘   │   │
-│                   (one per widget)       │            │            │   │
-│                             │            └────────────┼────────────┘   │
-│                   ┌─────────▼──────────┐              │                │
-│                   │  QueueDrainTimer   │◄─────────────┘                │
-│                   │  (QTimer 50ms)     │  triggers repaint             │
-│                   └────────────────────┘                               │
-│                                                                         │
-│  Win32 layer:  ClipCursor()  ·  SetWindowPos()  ·  EnumDisplayMonitors │
-└─────────────────────────────────────────────────────────────────────────┘
-          ▲                ▲                 ▲               ▲
-          │ Queue.put()    │ Queue.put()     │ Queue.put()   │ Queue.put()
-┌─────────┴──┐  ┌──────────┴─┐  ┌───────────┴──┐  ┌────────┴──────────┐
-│  DUMMY     │  │  POMODORO  │  │  CALENDAR    │  │  NOTIFICATION     │
-│  WIDGET    │  │  WIDGET    │  │  WIDGET      │  │  INTERCEPTOR      │
-│  PROCESS   │  │  PROCESS   │  │  PROCESS     │  │  WIDGET PROCESS   │
-│            │  │            │  │              │  │                   │
-│ WidgetBase │  │ WidgetBase │  │ WidgetBase   │  │ WidgetBase        │
-│ (contract) │  │            │  │              │  │ + UserNotification│
-│            │  │ timer loop │  │ datetime loop│  │   Listener (WinRT)│
-└────────────┘  └────────────┘  └──────────────┘  └───────────────────┘
-```
+This document extends the v1.0 architecture research with v1.1-specific integration analysis. The existing system is:
 
-### Component Responsibilities
+- **Host process** (`host/main.py`): PyQt6 app, spawns widget subprocesses via `multiprocessing.Process`, watches `config.json` via `QFileSystemWatcher`, enforces `ClipCursor()` on Display 3. Entry guard: `multiprocessing.set_start_method("spawn")` + `if __name__ == "__main__"`.
+- **Control panel process** (`control_panel/__main__.py`): Separate PyQt6 `QMainWindow`, sole writer of `config.json`. Launched independently.
+- **Config.json resolution**: Both host and control panel currently resolve `config.json` via a bare `"config.json"` string, which resolves against the process working directory. This is the core breakage risk when either process moves into a packaged `.exe`.
 
-| Component | Responsibility | Lives In |
-|-----------|---------------|----------|
-| **HostWindow** | Owns the physical Display 3 QWidget; applies WindowStaysOnTopHint + FramelessWindowHint; enforces 1920x515 geometry at target screen origin | Host process |
-| **Compositor** | Receives FrameData messages from QueueDrainTimer; calls QPainter to blit each widget's rendered region into its assigned slot; triggers update() | Host process |
-| **QueueDrainTimer** | A QTimer firing every 50 ms; drains all widget queues non-blocking (queue.get_nowait in a loop); converts raw dicts to FrameData and hands to Compositor | Host process |
-| **ProcessManager** | Spawns, monitors, and terminates widget multiprocessing.Process instances; maps widget_id → (Process, Queue pair); restarts crashed workers | Host process |
-| **ConfigLoader / Watcher** | Parses config.json on startup; installs QFileSystemWatcher on the file path; emits a config_changed signal on write; feeds ProcessManager with layout and per-widget settings | Host process |
-| **ClipCursor enforcer** | Calls win32api.ClipCursor() with the Display 3 RECT on startup; re-applies on WM_DISPLAYCHANGE | Host process (Win32 layer) |
-| **WidgetBase** | Abstract base class / protocol that every widget process must implement; defines the run() entry point and the outbound queue contract | Shared module |
-| **Dummy Widget** | Minimal WidgetBase implementation; pushes a static colored rectangle; used to validate the full host pipeline | Widget process |
-| **Pomodoro Widget** | Owns Pomodoro state machine (WORK / SHORT_BREAK / LONG_BREAK); pushes countdown frame data every second | Widget process |
-| **Calendar Widget** | Polls datetime.now() every second; formats and pushes styled date/time FrameData | Widget process |
-| **Notification Interceptor** | Calls UserNotificationListener.get_current() via winrt-Windows.UI.Notifications.Management; polls or subscribes to notification_changed events; pushes notification summaries as FrameData; does NOT suppress OS notifications (read-only in Python — see Pitfalls) | Widget process |
-| **ControlPanel** | Separate PyQt6 QMainWindow on a primary monitor; reads config.json; presents layout editor and per-widget config forms; writes config.json on save; does not connect directly to host process | Control panel process |
+---
 
-## Recommended Project Structure
+## v1.1 System Overview
 
 ```
-MonitorControl/
-├── host/
-│   ├── main.py                 # Entry point — QApplication, HostWindow, ProcessManager
-│   ├── window.py               # HostWindow (borderless, always-on-top, Display 3)
-│   ├── compositor.py           # Compositor — QPainter slot layout renderer
-│   ├── queue_drain.py          # QueueDrainTimer — polls all widget queues
-│   ├── process_manager.py      # ProcessManager — spawn/stop/restart widgets
-│   ├── config_loader.py        # ConfigLoader + QFileSystemWatcher integration
-│   └── win32_utils.py          # ClipCursor, EnumDisplayMonitors, SetWindowPos wrappers
-│
-├── widgets/
-│   ├── base.py                 # WidgetBase abstract class + IPC message schema
-│   ├── dummy/
-│   │   └── widget.py           # Dummy widget (pipeline validation)
-│   ├── pomodoro/
-│   │   └── widget.py           # Pomodoro timer widget
-│   ├── calendar/
-│   │   └── widget.py           # Calendar / datetime widget
-│   └── notifications/
-│       └── widget.py           # Windows notification interceptor widget
-│
-├── control_panel/
-│   ├── main.py                 # Entry point for control panel process
-│   ├── panel.py                # ControlPanel QMainWindow
-│   └── config_editor.py        # Per-widget config forms
-│
-├── shared/
-│   └── message_schema.py       # FrameData and IPC message dataclasses (shared import)
-│
-├── config.json                 # Runtime config (layout + per-widget settings)
-└── launch.py                   # Optional: spawns both host and control panel
+┌──────────────────────────────────────────────────────────────────┐
+│  WINDOWS LOGIN EVENT                                              │
+│  Task Scheduler (ONLOGON trigger)                                 │
+│       │                                                           │
+│       └──► host\host.exe  (no console, hidden window style)      │
+│                │                                                  │
+│                ├── resolves config.json from exe directory        │
+│                ├── spawns widget subprocesses via sys.executable  │
+│                └── watches config.json via QFileSystemWatcher     │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│  USER LAUNCHES MANUALLY                                           │
+│       │                                                           │
+│       └──► control_panel\MonitorControl.exe  (standalone .exe)   │
+│                │                                                  │
+│                ├── resolves config.json from exe directory        │
+│                ├── reads/writes config.json (sole writer)         │
+│                └── "Startup" tab: enables/disables host autostart │
+└──────────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────────┐
+                    │    config.json       │
+                    │  (shared on disk)    │
+                    │  + autostart flag    │
+                    └─────────────────────┘
 ```
 
-### Structure Rationale
+---
 
-- **host/:** The single Python process that owns the Qt event loop and the display. Isolated so the host can be started without control panel.
-- **widgets/:** Each widget is a subdirectory so it can grow to include assets, sub-modules, and tests without polluting the namespace.
-- **widgets/base.py:** The contract between host and widget lives here. Changing the schema means touching one file; all widgets inherit the change.
-- **control_panel/:** Separate top-level package so it can be launched independently. Nothing in control_panel/ imports from host/.
-- **shared/:** Holds only the IPC message schema (pure dataclasses, no Qt, no win32). Both host and widget processes can import it without pulling in heavy dependencies.
+## New Components Required
 
-## Architectural Patterns
+### Component 1: `autostart` module (new, shared or host)
 
-### Pattern 1: Queue-Drain-on-Timer (host side)
+**Responsibility:** Create and delete a Windows Task Scheduler entry for the host executable. Expose a simple two-function interface: `enable(exe_path)` and `disable()`.
 
-**What:** A QTimer fires every N ms in the Qt main thread. The handler drains all widget queues using non-blocking `queue.get_nowait()` inside a try/except. Any new FrameData updates the compositor's state dict; a single `update()` call is issued after the drain loop finishes so Qt coalesces repaints.
+**Location:** `host/autostart.py` or `shared/autostart.py`. Place in `host/` if only the control panel calls it via `config.json` toggle. Place in `shared/` if any future component also needs it. `host/autostart.py` is sufficient for v1.1.
 
-**When to use:** Always — this is the only way to move data from multiprocessing queues into the Qt event loop without blocking the event loop or spawning additional threads.
-
-**Trade-offs:** 50 ms polling introduces up to 50 ms display latency (acceptable for a utility bar). Shorter intervals (16 ms) are safe but increase CPU overhead; longer intervals (200 ms) are fine for low-frequency widgets (calendar). A tiered polling interval per widget type can be added later.
-
-**Example:**
+**Interface:**
 ```python
-# host/queue_drain.py
-from PyQt6.QtCore import QTimer
-import queue
+def enable_autostart(exe_path: str) -> None:
+    """Register host.exe as a Task Scheduler ONLOGON task."""
 
-class QueueDrainTimer:
-    def __init__(self, process_manager, compositor, interval_ms=50):
-        self._pm = process_manager
-        self._compositor = compositor
-        self._timer = QTimer()
-        self._timer.setInterval(interval_ms)
-        self._timer.timeout.connect(self._drain)
-        self._timer.start()
+def disable_autostart() -> None:
+    """Remove the Task Scheduler task if it exists."""
 
-    def _drain(self):
-        updated = False
-        for widget_id, q in self._pm.queues.items():
-            try:
-                while True:
-                    msg = q.get_nowait()
-                    self._compositor.update_frame(widget_id, msg)
-                    updated = True
-            except queue.Empty:
-                pass
-        if updated:
-            self._compositor.schedule_repaint()
+def is_autostart_enabled() -> bool:
+    """Return True if the task exists in Task Scheduler."""
 ```
 
-### Pattern 2: Slot-Based Compositor (host side)
+**Implementation approach:** Call `schtasks.exe` via `subprocess.run()` using the existing `subprocess` module — no new dependencies. This avoids `win32com.taskscheduler` complexity and does not require pywin32 to be imported in the control panel's frozen context. The `schtasks /query` call is the status check, `schtasks /create` enables, and `schtasks /delete` disables.
 
-**What:** The host window is divided into named rectangular slots whose geometry is read from config.json. The Compositor holds a dict of `{widget_id: FrameData}`. On each `paintEvent`, it iterates slots in config order, asking each widget's FrameData to paint itself into the assigned QRect via QPainter. Slots that have no live widget paint a placeholder.
+### Component 2: Autostart toggle UI in control panel (modified: `control_panel/main_window.py`)
 
-**When to use:** Essential — this is what allows "widgets can be added or swapped without modifying host code". The host only knows about slots and FrameData; it does not import widget code.
+**Responsibility:** A new "Startup" tab (or group within the Layout tab) containing a checkbox "Start MonitorControl host automatically at login". On change it calls `autostart.enable()` or `autostart.disable()`. The checkbox initial state is populated by `autostart.is_autostart_enabled()`.
 
-**Trade-offs:** Widget output must be serializable through a multiprocessing.Queue (no Qt objects, no QPainter state). Widgets express their UI as primitive draw commands or pre-rendered pixel buffers (bytes). Pre-rendered bytes (QImage-compatible raw RGBA) is simpler and avoids reinventing a draw command protocol.
+**Does NOT require saving to config.json.** Autostart state lives in Task Scheduler, not in config. The toggle acts immediately — no Save button required for this control.
 
-**Example:**
-```python
-# shared/message_schema.py
-from dataclasses import dataclass, field
+### Component 3: `build/` directory and PyInstaller spec files (new)
 
-@dataclass
-class FrameData:
-    widget_id: str
-    width: int
-    height: int
-    rgba_bytes: bytes        # raw RGBA32, width*height*4 bytes
-    timestamp: float = 0.0
+**Responsibility:** Reproducible build scripts for both executables.
 
-# host/compositor.py — paintEvent excerpt
-def paintEvent(self, event):
-    painter = QPainter(self)
-    for slot in self._config.slots:
-        frame = self._frames.get(slot.widget_id)
-        if frame:
-            img = QImage(frame.rgba_bytes, frame.width, frame.height,
-                         QImage.Format.Format_RGBA8888)
-            painter.drawImage(slot.rect, img)
-        else:
-            painter.fillRect(slot.rect, QColor("#1a1a1a"))
-    painter.end()
+```
+build/
+├── control_panel.spec    # PyInstaller spec for MonitorControl.exe
+├── host.spec             # PyInstaller spec for host.exe (if packaged)
+└── build.py              # Optional: orchestrates both builds
 ```
 
-### Pattern 3: WidgetBase Contract (widget side)
+---
 
-**What:** An abstract base class that every widget process must subclass. It defines: `run(out_queue)` as the entry point called by ProcessManager; `on_config_update(cfg)` for hot-reload when config changes; and the obligation to push only picklable objects (FrameData or plain dicts) onto `out_queue`. The widget process never imports Qt.
+## Autostart Implementation: Task Scheduler vs Registry Run Key
 
-**When to use:** Always — enforcing this boundary means widget crashes cannot corrupt the host process and widgets can be developed and tested independently.
+### Decision: Use Task Scheduler (ONLOGON trigger)
 
-**Trade-offs:** Widgets must render their own frames (e.g., using PIL/Pillow or Cairo for off-screen drawing) before pushing bytes. This adds a dependency, but Pillow is small and available everywhere. Alternatively, widgets can push structured data dicts and let the host render them — simpler for text-only widgets, complex for custom graphics.
+**Rationale:**
 
-**Recommendation:** Use the pre-rendered bytes approach for Pomodoro and Calendar (they have custom graphics); use structured data dicts for the Dummy widget (simpler to validate).
+| Criterion | Task Scheduler | Registry HKCU\Run |
+|-----------|---------------|-------------------|
+| No console window | Controlled by `/f` flag + `pythonw` / windowed exe | Requires `pythonw.exe` wrapper; does not apply to `.exe` |
+| Implementation complexity | 3 `schtasks` subprocess calls | 3 `winreg` calls |
+| Already requires pywin32? | No — `schtasks.exe` is a system utility | Yes — or stdlib `winreg` (no new dep) |
+| User visibility | Visible in Task Scheduler UI (transparent) | Hidden unless user checks registry |
+| UAC required? | No — ONLOGON with `/ru <current user>` does not require elevation | No — HKCU does not require elevation |
+| Startup delay control | Yes — `/delay 0:05` to wait 5s after login | No |
+| Working directory control | Yes — `/tr "\"path\to\host.exe\"" /sd <workdir>` | Command string only; no separate workdir |
+| Antivirus sensitivity | Lower (system-blessed mechanism) | Higher (HKCU Run keys are an ATT&CK technique T1547.001) |
+
+Task Scheduler wins on working directory control (critical for config.json resolution — see below) and on working directory being settable in the task definition itself.
+
+**Registry Run key is viable** and simpler code, but the working directory problem makes it harder: the process working directory from a HKCU Run launch is typically `%WINDIR%\System32` or the user profile, not the exe directory, requiring the code to fall back to `sys.executable` path resolution regardless.
+
+### schtasks Command Pattern
+
+```
+# Enable (run as current user, at logon, no interactive requirement)
+schtasks /create /tn "MonitorControl Host" /tr "\"C:\path\to\host.exe\"" /sc ONLOGON /ru <username> /f /rl HIGHEST
+
+# Disable
+schtasks /delete /tn "MonitorControl Host" /f
+
+# Query status (returns non-zero exit if task does not exist)
+schtasks /query /tn "MonitorControl Host"
+```
+
+The `/rl HIGHEST` flag is optional for a windowed app but prevents UAC prompts if the host ever needs elevation for ClipCursor on locked-down machines. For this app it is not required — ClipCursor via pywin32 works at normal user privilege.
+
+The `/f` flag on `/create` overwrites an existing task of the same name silently — safe to call on every "enable" toggle.
+
+**No console window** is handled by the exe itself (PyInstaller `--windowed` flag), not by the task definition. A `--windowed` exe never shows a console regardless of how it is launched.
+
+---
+
+## PyInstaller Packaging: Which Executables Need It
+
+### Control Panel: Needs packaging (EXEC-01..04)
+
+The control panel is a standalone PyQt6 app intended for users who do not have Python installed. It must be packaged as a `.exe`. This is the primary packaging target.
+
+### Host: Does NOT need packaging for v1.1
+
+The autostart requirement (STRT-01..04) only specifies that the host launches without a visible terminal/console window. This can be achieved without packaging by:
+- Running `pythonw.exe host\main.py` from the Task Scheduler task (no console, just like a `.exe`)
+- Or packaging it as a secondary goal (EXEC scope only mentions control panel)
+
+**However:** If the control panel `.exe` calls `autostart.enable()` and needs to specify the host executable path, the path it registers depends on whether the host is a `.py` (requires Python) or a `.exe` (standalone). For clean distribution (the milestone goal of "no Python environment required"), the host should also be packaged. The PROJECT.md scope is ambiguous — "Control panel packaged as standalone .exe" is specified but the host requirement is only "no terminal required."
+
+**Build order implication:** Package host first (its spec is simpler — no PyQt6 plugin complexity), then control panel, so the control panel's autostart `enable()` can hardcode the path to `host.exe` in the same distribution directory.
+
+---
+
+## PyInstaller Path Resolution: The Critical Problem
+
+### The Problem
+
+Both `host/main.py` and `control_panel/__main__.py` currently reference `config.json` as a bare filename:
 
 ```python
-# widgets/base.py
-from abc import ABC, abstractmethod
-import multiprocessing
+# host/main.py line 87
+config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)
 
-class WidgetBase(ABC):
-    def __init__(self, widget_id: str, config: dict,
-                 out_queue: multiprocessing.Queue):
-        self.widget_id = widget_id
-        self.config = config
-        self.out_queue = out_queue
-
-    @abstractmethod
-    def run(self) -> None:
-        """Main loop. Runs in a subprocess. Push FrameData to self.out_queue."""
-
-    def on_config_update(self, new_config: dict) -> None:
-        """Called when config.json changes. Default: replace config dict."""
-        self.config = new_config
+# control_panel/__main__.py line 9
+window = ControlPanelWindow(config_path="config.json")
 ```
 
-## Data Flow
+A bare `"config.json"` resolves against `os.getcwd()` — the process working directory at launch time. When launched from Task Scheduler or by double-clicking a `.exe`, the working directory is **not** guaranteed to be the directory containing the `.exe`.
 
-### Widget Update Flow (steady state)
+### The Fix: exe-relative path resolution
 
-```
-Widget process internal loop
-    │
-    ├── compute new state (timer tick, datetime, notification poll)
-    │
-    ├── render to off-screen buffer (Pillow ImageDraw or plain bytes)
-    │
-    └── queue.put(FrameData(widget_id, w, h, rgba_bytes))
-                        │
-                        │  (pickle + pipe, ~50 ms latency)
-                        ▼
-              QueueDrainTimer (QTimer, Qt main thread)
-                        │
-                        ├── queue.get_nowait() loop
-                        │
-                        └── compositor.update_frame(widget_id, frame_data)
-                                        │
-                                        └── self._frames[widget_id] = frame_data
-                                            self.update()  ── triggers paintEvent
-                                                    │
-                                                    ▼
-                                            QPainter.drawImage(slot.rect, img)
-                                                    │
-                                                    ▼
-                                            Display 3 (1920x515 physical pixels)
+The correct pattern uses `sys.executable` (frozen) or `__file__` (source) to anchor the path:
+
+```python
+import sys
+import os
+
+def get_config_path() -> str:
+    """Return absolute path to config.json next to the executable (or script root)."""
+    if getattr(sys, 'frozen', False):
+        # PyInstaller frozen: sys.executable is the .exe path
+        base = os.path.dirname(sys.executable)
+    else:
+        # Development: resolve relative to project root
+        # __file__ here is host/main.py; go up one level
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "config.json")
 ```
 
-### Config Change Flow
+This function can live in `shared/paths.py` and be called by both host and control panel.
+
+### PyInstaller 6.x Path Details
+
+- **One-folder build (recommended):** `sys.executable` points to the `.exe` inside the output folder. `os.path.dirname(sys.executable)` is the folder containing the `.exe` and all bundled DLLs. `config.json` should be placed beside the `.exe` at distribution time — it is NOT bundled (it is user-mutable).
+- **One-file build (avoid for this project):** The `.exe` extracts to a temp directory on each run. `sys._MEIPASS` points to the temp dir, `sys.executable` points to the single `.exe`. An external `config.json` would need to be alongside the single `.exe`, resolved via `os.path.dirname(sys.executable)`. The temp dir extraction on each run also causes a startup delay and makes `multiprocessing` subprocess spawning more complex.
+
+**Recommendation: Use one-folder (`--onedir`) for both executables.** Reasoning:
+1. Faster startup (no extraction step).
+2. `sys.executable` directory equals the bundle directory — `config.json` can live beside the exe.
+3. Multiprocessing subprocess spawning is straightforward: child processes re-use the already-unpacked `_internal/` directory.
+4. Easier to verify and debug (files are visible on disk).
+
+---
+
+## Subprocess Spawning from Frozen Host
+
+### The Problem
+
+`host/main.py` uses `multiprocessing.Process(target=run_pomodoro_widget, ...)` with `set_start_method("spawn")`. Under `spawn`, Python serializes the target function reference and re-executes `sys.executable` with special arguments to locate the target.
+
+In a frozen `.exe`, `sys.executable` is the frozen executable itself (not `python.exe`). The child processes will re-execute the `.exe` with multiprocessing bootstrap arguments. This works correctly **if**:
+
+1. `multiprocessing.freeze_support()` is called at the top of the `if __name__ == "__main__"` block — PyInstaller 3.3+ adds this automatically via a runtime hook, but calling it explicitly in `main.py` is defensive and harmless.
+2. The target functions (`run_pomodoro_widget`, `run_calendar_widget`, `run_notification_widget`) are importable from the frozen executable's module namespace.
+3. The widget functions do NOT import PyQt6 (already satisfied — they use Pillow only).
+
+**No code change is required** for multiprocessing to work in one-folder mode. The existing `multiprocessing.set_start_method("spawn")` + target function references are already compatible with PyInstaller's frozen multiprocessing support.
+
+**If the host is also packaged as a `.exe`:** The child widget processes will use `sys.executable` (the host exe) as their interpreter. This is correct — they re-enter the exe via the multiprocessing bootstrap and call the target function. The widget processes do NOT unpack the `.exe` again; they reuse the already-unpacked `_internal/` directory from the parent (PyInstaller 6.9+ behavior).
+
+---
+
+## PyInstaller spec: Control Panel
+
+### Hidden Imports to Declare
+
+PyInstaller's static import analysis may miss the following:
+
+| Import | Reason it may be missed | Declaration |
+|--------|-------------------------|-------------|
+| `winreg` | Only used in `autostart.py` which is new | `--hidden-import winreg` |
+| `win32api`, `win32con`, `win32security` | pywin32 DLLs have their own loader; PyInstaller has a hook for `pywin32` but older versions needed explicit hidden imports | Test at build time; add if needed |
+| `PyQt6.QtWidgets`, `PyQt6.QtCore`, `PyQt6.QtGui` | Usually auto-detected; verify | Auto |
+| `control_panel.*`, `shared.*` | Local packages — must be on the module path at analysis time | Ensure `pathex` includes project root in spec |
+
+### Data Files to Bundle
+
+`config.json` must **NOT** be bundled inside the exe. It is user-mutable and must exist alongside the `.exe` in the distribution folder. Do not add it to `datas` in the spec.
+
+Font files (if any are bundled as assets) would go in `datas`. Check `widgets/` for any asset files at build time.
+
+### Recommended Spec Skeleton
+
+```python
+# build/control_panel.spec
+a = Analysis(
+    ['control_panel/__main__.py'],
+    pathex=['.'],                         # project root on analysis path
+    binaries=[],
+    datas=[],                             # no bundled data files for v1.1
+    hiddenimports=['winreg'],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+)
+pyz = PYZ(a.pure, a.zipped_data)
+exe = EXE(
+    pyz, a.scripts, [],
+    exclude_binaries=True,
+    name='MonitorControl',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=False,                        # --windowed: no console window
+    icon=None,                            # set to .ico path when available
+)
+coll = COLLECT(
+    exe, a.binaries, a.zipfiles, a.datas,
+    strip=False,
+    upx=False,
+    name='MonitorControl',
+)
+```
+
+The `console=False` flag is equivalent to `--windowed` and is the correct setting for the control panel.
+
+---
+
+## Data Flow Changes for v1.1
+
+### New: Autostart Toggle Flow
 
 ```
-User edits layout/config in ControlPanel
+User checks/unchecks "Start at login" in control_panel Startup tab
     │
-    └── writes config.json
-                │
-                ▼
-    QFileSystemWatcher.fileChanged signal (host process)
-                │
-                ▼
-    ConfigLoader.reload()
-                │
-                ├── diff old vs new layout
-                │
-                ├── ProcessManager.stop_widget(removed_ids)
-                │
-                ├── ProcessManager.start_widget(added_ids)
-                │
-                └── Compositor.update_slots(new_layout)
+    ├── is_checked = True
+    │       └── autostart.enable(host_exe_path)
+    │               └── subprocess.run(["schtasks", "/create", ...])
+    │
+    └── is_checked = False
+            └── autostart.disable()
+                    └── subprocess.run(["schtasks", "/delete", ...])
+
+# No config.json write needed — state lives in Task Scheduler
+# Checkbox initial state on panel open:
+autostart.is_autostart_enabled()
+    └── subprocess.run(["schtasks", "/query", ...])
+    └── returncode == 0  →  enabled
 ```
 
-### Process Lifecycle Flow
+### Modified: Config Path Resolution Flow
 
 ```
-Host startup
-    │
-    ├── ConfigLoader.load(config.json)
-    │
-    ├── HostWindow.show() → Display 3
-    │
-    ├── win32_utils.apply_clip_cursor(display3_rect)
-    │
-    ├── ProcessManager.start_all(config.widgets)
-    │       │
-    │       └── for each widget:
-    │               out_queue = multiprocessing.Queue()
-    │               proc = multiprocessing.Process(target=widget.run)
-    │               proc.start()
-    │
-    └── QueueDrainTimer.start(interval=50ms)
+# Before v1.1 (broken in packaged context):
+config_path = "config.json"                    # resolves against cwd
+
+# After v1.1 (correct in all contexts):
+config_path = shared.paths.get_config_path()   # resolves against exe dir or project root
 ```
 
-### Key Data Flows
+This change touches:
+- `host/main.py` — `ConfigLoader("config.json", ...)` → `ConfigLoader(get_config_path(), ...)`
+- `host/main.py` — `config_dir = os.path.dirname(os.path.abspath("config.json"))` → `config_dir = os.path.dirname(get_config_path())`
+- `control_panel/__main__.py` — `ControlPanelWindow(config_path="config.json")` → `ControlPanelWindow(config_path=get_config_path())`
 
-1. **Steady-state rendering:** Widget process → Queue → QueueDrainTimer → Compositor → QPainter → screen. One-way push; host never sends draw requests to widgets.
-2. **Config hot-reload:** ControlPanel writes config.json → QFileSystemWatcher fires → ConfigLoader reloads → ProcessManager diffs → dead/new processes managed → Compositor slot map updated.
-3. **Notification capture:** WinRT UserNotificationListener polls Action Center in the notification widget's subprocess → pushes notification text as FrameData → rendered in notification slot. No suppression of OS toasts (see Pitfalls).
-4. **Cursor lockout:** win32api.ClipCursor() called once on host startup with Display 3 RECT. Re-applied on WM_DISPLAYCHANGE in case monitor layout changes.
+### Modified: Command File Path
 
-## Scaling Considerations
+The pomodoro command file path in `host/main.py` is derived from `config.json`'s directory:
 
-This is a single-machine desktop application. "Scale" means number of simultaneous widget processes and frame update frequency.
+```python
+config_dir = os.path.dirname(os.path.abspath("config.json"))
+cmd_path = os.path.join(config_dir, "pomodoro_command.json")
+```
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 1–4 widgets (target) | Current architecture — one process per widget, single queue, 50 ms drain timer. No changes needed. |
-| 5–12 widgets | Increase drain timer to 16 ms (60 fps equivalent) if visual latency is noticeable. Consider per-widget QTimer intervals matched to each widget's natural update rate. |
-| 12+ widgets | Pool drain into a single aggregator thread that forwards to the Qt main thread via a thread-safe flag rather than polling all N queues each tick. Unlikely to be needed. |
+This automatically becomes correct once `config.json` is resolved to the exe directory — `config_dir` will be the exe's folder and `pomodoro_command.json` will be written there. No separate fix needed beyond fixing the config path resolution.
 
-### Scaling Priorities
+---
 
-1. **First bottleneck:** Queue drain loop iterating many idle queues. Fix: add a dirty-flag set per widget so the drain loop skips queues with no new data.
-2. **Second bottleneck:** Compositor repainting entire 1920x515 surface on every frame update. Fix: dirty-rect tracking — only repaint the slot(s) that received new FrameData. Qt's update(QRect) supports this natively.
+## Component Map: New vs Modified
 
-## Anti-Patterns
+| Component | Status | Location | Change |
+|-----------|--------|----------|--------|
+| `shared/paths.py` | **New** | `shared/paths.py` | `get_config_path()` helper |
+| `host/autostart.py` | **New** | `host/autostart.py` | Task Scheduler enable/disable/query |
+| `control_panel/main_window.py` | **Modified** | existing | Add Startup tab with autostart toggle |
+| `host/main.py` | **Modified** | existing | Use `get_config_path()` instead of bare `"config.json"` |
+| `control_panel/__main__.py` | **Modified** | existing | Use `get_config_path()` instead of bare `"config.json"` |
+| `build/control_panel.spec` | **New** | `build/` | PyInstaller spec for control panel exe |
+| `build/host.spec` | **New** (optional) | `build/` | PyInstaller spec for host exe |
 
-### Anti-Pattern 1: Passing Qt Objects Through Queues
+---
 
-**What people do:** Put QPixmap, QImage, QPainter, or Qt signals into multiprocessing.Queue.
+## Anti-Patterns for v1.1
 
-**Why it's wrong:** Qt objects are not picklable. multiprocessing.Queue serializes via pickle. Passing Qt objects will raise PicklingError at runtime. Qt objects also belong to a specific thread/event-loop and must not cross process boundaries.
+### Anti-Pattern 1: Storing Autostart State in config.json
 
-**Do this instead:** Widgets render to raw bytes (RGBA pixel buffer via Pillow or struct.pack) before calling queue.put(). The host reconstructs a QImage from the bytes. Only plain Python data structures (dataclasses, dicts, ints, bytes) travel through the queue.
+**What people do:** Add an `"autostart": true` key to config.json and read it on startup.
 
-### Anti-Pattern 2: Blocking the Qt Event Loop on Queue Reads
+**Why it's wrong:** config.json is the host's hot-reload config. The host would need to read a flag telling it to start itself — circular. The actual autostart state is a Windows system concern, not an app config concern. Task Scheduler is the ground truth; polling config.json to mirror it adds a synchronization surface that can drift.
 
-**What people do:** Call queue.get() (blocking) inside a paintEvent, a QThread, or a slot connected to a signal.
+**Do this instead:** Call `schtasks /query` to get the current state. State lives in exactly one place: Task Scheduler. No flag in config.json.
 
-**Why it's wrong:** Any blocking call in the Qt main thread freezes the UI. The event loop cannot process input events, paint requests, or timer signals until the block returns.
+### Anti-Pattern 2: Bundling config.json Inside the .exe
 
-**Do this instead:** Always use queue.get_nowait() inside the QTimer drain handler. Catch queue.Empty and return immediately. The QTimer fires again in 50 ms regardless.
+**What people do:** Add `config.json` to PyInstaller's `datas` list so it gets bundled into `_internal/`.
 
-### Anti-Pattern 3: Widget Processes Importing PyQt6
+**Why it's wrong:** config.json is the sole IPC channel between control panel and host. If it is bundled read-only inside the exe, the control panel cannot write to it (it would write next to the exe while the host reads from the read-only bundle path). Users cannot manually edit it either.
 
-**What people do:** Import PyQt6 in widget subprocess code to use QImage for off-screen rendering or QFont for text metrics.
+**Do this instead:** Keep config.json external to both executables, alongside the executables in the distribution directory. Both processes locate it via `get_config_path()` anchored to `sys.executable`'s directory.
 
-**Why it's wrong:** PyQt6 requires a running QApplication. Spawning a QApplication in a subprocess on Windows with the spawn start method causes crashes or silent failures because Qt initializes display connections that conflict with the host's Qt context.
+### Anti-Pattern 3: One-File Build for the Host
 
-**Do this instead:** Widget processes use only non-Qt rendering (Pillow, Cairo, or pure numpy). Qt lives exclusively in the host process and the control panel process.
+**What people do:** Use `--onefile` for the host exe to produce a single portable file.
 
-### Anti-Pattern 4: Hardcoding Monitor Index Instead of Matching by Geometry
+**Why it's wrong:** One-file builds extract to a temp directory on each run. Multiprocessing child processes (widget subprocesses) also use `sys.executable` which points to the single `.exe`, causing each child spawn to attempt extraction into another temp dir. This compounds startup latency and can cause race conditions where the parent's extraction hasn't finished when the first child tries to reuse the temp dir.
 
-**What people do:** Use `QApplication.screens()[2]` (index 2) as "Display 3".
+**Do this instead:** Use `--onedir` (the default). The `_internal/` directory is extracted once at install time, not at runtime. Widget subprocesses reuse it immediately.
 
-**Why it's wrong:** Monitor enumeration order is not guaranteed stable across reboots, driver updates, or sleep/wake cycles. Index 2 today may be a different physical monitor tomorrow.
+### Anti-Pattern 4: Calling schtasks with a Relative Path in /tr
 
-**Do this instead:** Match the target monitor by geometry (size + position) from config.json: iterate `QApplication.screens()`, find the one whose `geometry()` matches `1920x515` at the configured (x, y) origin. Fall back gracefully if not found.
+**What people do:** Register `schtasks /create /tr "host.exe"` without an absolute path.
 
-### Anti-Pattern 5: Control Panel Process Writing Config While Host Holds a File Lock
+**Why it's wrong:** Task Scheduler resolves the program path relative to `System32` or the user profile, not the exe's directory. The task will fail to find the executable.
 
-**What people do:** Have both control panel and host open config.json simultaneously with write handles.
+**Do this instead:** Always pass `sys.executable` (the absolute path to the host exe at the time the control panel registers the task) as the `/tr` argument. Quote it to handle spaces in the path.
 
-**Why it's wrong:** File locking contention on Windows causes IOError or silently corrupt JSON writes.
+### Anti-Pattern 5: Resolving config.json Relative to `__file__` in the Spec
 
-**Do this instead:** Control panel is the sole writer; host is the sole reader. Control panel writes atomically (write to config.tmp, then os.replace to config.json). QFileSystemWatcher triggers only after the rename completes, so the host always reads a complete file.
+**What people do:** In production code, use `os.path.dirname(__file__)` to find config.json.
+
+**Why it's wrong:** In a frozen exe, `__file__` for `host/main.py` points inside `sys._MEIPASS/_internal/`, which is the bundle directory — not the directory beside the exe. `config.json` is external (not bundled) and lives beside the exe.
+
+**Do this instead:** Use `os.path.dirname(sys.executable)` when `sys.frozen` is set. Use `__file__`-relative paths only for files that ARE bundled (e.g., fonts, images in `datas`). For user-mutable external files, always anchor to `sys.executable`.
+
+---
+
+## Build Order Recommendation
+
+Phase ordering for v1.1 implementation:
+
+```
+Step 1: shared/paths.py
+    Reason: Both host and control panel depend on it.
+    Risk: None — pure Python, no new dependencies.
+
+Step 2: host/main.py + control_panel/__main__.py path fix
+    Reason: Fix config.json resolution before any packaging work.
+             If this is broken in packaged context, everything downstream fails.
+    Risk: Low — well-understood change, can be validated in source mode first.
+
+Step 3: host/autostart.py (Task Scheduler integration)
+    Reason: Must be written and testable in source mode before control panel
+            UI is wired up. schtasks calls can be validated in isolation.
+    Risk: Medium — subprocess.run(schtasks) parsing exit codes; test with
+            /query for an existing and non-existing task name.
+
+Step 4: control_panel/main_window.py Startup tab
+    Reason: Wires the autostart module into the UI. Depends on Step 3.
+    Risk: Low — UI work only.
+
+Step 5: PyInstaller build for control_panel (control_panel.spec)
+    Reason: The main packaging deliverable. Depends on Steps 1-4 being correct.
+    Risk: High — likely requires iteration on hidden imports; run pyi-makespec
+            first to generate base spec, then refine.
+
+Step 6 (optional): PyInstaller build for host (host.spec)
+    Reason: If clean distribution without Python is required for the host.
+            Not strictly required by STRT spec; required by distribution goal.
+    Risk: High — multiprocessing + winrt + pywin32 in a single frozen exe
+            is the most complex build; test widget subprocess spawning
+            explicitly after packaging.
+```
+
+---
 
 ## Integration Points
 
-### External Services
+### Internal Boundaries (v1.1 changes)
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Windows Action Center (notifications) | WinRT via `winrt-Windows.UI.Notifications.Management`; `UserNotificationListener.get_current()` in widget subprocess | Requires user consent (notification access permission). Read-only — cannot suppress individual OS toasts from Python. Confidence: MEDIUM |
-| Win32 API (cursor, window placement) | ctypes + `win32api`/`win32con` (pywin32) via `win32_utils.py` | ClipCursor, SetWindowPos, EnumDisplayMonitors. Confidence: HIGH |
-| Windows Focus Assist / Do Not Disturb | No programmatic Python API for suppression; read-only via registry polling or WNS APIs | If suppression is a hard requirement, see PITFALLS.md — may require a Windows service or privileged hook |
+| Boundary | Communication | v1.1 Change |
+|----------|---------------|-------------|
+| Control panel ↔ Task Scheduler | `subprocess.run(["schtasks", ...])` | New — via `host/autostart.py` |
+| Control panel ↔ Host (autostart path) | `sys.executable` path passed to `schtasks /create /tr` | New — control panel must know host exe path |
+| Host ↔ config.json | `get_config_path()` anchored to exe dir | Modified path resolution |
+| Control panel ↔ config.json | `get_config_path()` anchored to exe dir | Modified path resolution |
+| PyInstaller ↔ multiprocessing | `freeze_support()` + `sys.executable` bootstrap | Existing pattern; verified compatible |
 
-### Internal Boundaries
+### Knowing the Host Exe Path from the Control Panel
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Host ↔ Widget process | `multiprocessing.Queue` one-way push (widget → host). Plain dicts / dataclasses only. | No reverse channel in v1. Config updates reach widgets via process restart or a second queue per widget. |
-| Host ↔ ControlPanel | `config.json` file on disk (asynchronous, file-mediated). No direct socket or queue. | Decoupled by design; control panel can be closed/reopened without affecting host. |
-| ConfigLoader → ProcessManager | In-process Python function calls / Qt signals. `config_changed` signal carries new config dict. | Same process; no serialization needed. |
-| QueueDrainTimer → Compositor | In-process function call (`update_frame`). | Same thread (Qt main thread); no locking needed. |
-| WidgetBase → WidgetImpl | Python inheritance. | Base class in `shared/`; implementation in `widgets/<name>/`. No cross-process dependency. |
+This is a practical concern: when the control panel calls `autostart.enable()`, it needs to know the path to `host.exe`. Options:
+
+1. **Assume co-location (recommended for v1.1):** `host.exe` lives in the same distribution directory as `MonitorControl.exe`. The control panel computes `os.path.join(os.path.dirname(sys.executable), "host.exe")`. Simple and correct for the intended distribution layout.
+2. **Configurable path in config.json:** Store `"host_exe_path"` in config.json. More flexible, but adds a config key that must be set at install time.
+3. **Registry lookup:** Read the host path from a registry install key. Requires an installer.
+
+Option 1 is correct for v1.1 given the distribution model is "copy both exes to same folder."
+
+---
 
 ## Sources
 
-- PyQt6 / PySide6 multiprocessing queue integration: [Qt Forum — How to make Qt signals work with Python's multiprocessing](https://forum.qt.io/topic/114428/how-to-make-qt-signals-work-using-python-s-multiprocessing-interface)
-- QTimer drain pattern: [Overcoming GUI Freezes in PyQt — Medium](https://foongminwong.medium.com/overcoming-gui-freezes-in-pyqt-from-threading-multiprocessing-to-zeromq-qprocess-9cac8101077e)
-- QFileSystemWatcher: [Qt for Python official docs](https://doc.qt.io/qtforpython-6/PySide6/QtCore/QFileSystemWatcher.html)
-- QScreen multi-monitor: [QScreen Class — Qt 6 docs](https://doc.qt.io/qt-6/qscreen.html)
-- Windows notification listener (WinRT): [winrt-Windows.UI.Notifications.Management — PyPI](https://pypi.org/project/winrt-Windows.UI.Notifications.Management/)
-- Windows notification architecture: [Microsoft Learn — Notification listener](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/notification-listener)
-- ClipCursor / multi-monitor positioning: [Microsoft Learn — Positioning Objects on Multiple Display Monitors](https://learn.microsoft.com/en-us/windows/win32/gdi/positioning-objects-on-multiple-display-monitors)
-- Python multiprocessing IPC: [Python docs — multiprocessing](https://docs.python.org/3/library/multiprocessing.html)
+- PyInstaller runtime information (`sys._MEIPASS`, `sys.frozen`): [PyInstaller 6.19.0 — Run-time Information](https://pyinstaller.org/en/stable/runtime-information.html)
+- PyInstaller multiprocessing recipe: [PyInstaller Wiki — Recipe Multiprocessing](https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing)
+- PyInstaller common issues (one-file + multiprocessing): [PyInstaller 6.19.0 — Common Issues](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html)
+- PyInstaller PyQt6 packaging tutorial: [Python GUIs — Packaging PyQt6 for Windows with PyInstaller](https://www.pythonguis.com/tutorials/packaging-pyqt6-applications-windows-pyinstaller/)
+- schtasks create reference: [Microsoft Learn — schtasks create](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create)
+- Registry Run keys reference: [Microsoft Learn — Run and RunOnce Registry Keys](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys)
+- Task Scheduler vs Registry Run key comparison: [Windows Automatic Startup Locations — gHacks](https://www.ghacks.net/2016/06/04/windows-automatic-startup-locations/)
 
 ---
-*Architecture research for: Python desktop widget bar (MonitorControl)*
-*Researched: 2026-03-26*
+*Architecture research for: MonitorControl v1.1 — Autostart and Distribution*
+*Researched: 2026-03-27*

@@ -1,65 +1,220 @@
 # Stack Research
 
 **Domain:** Python desktop widget/dashboard framework — Windows, dedicated secondary display
-**Researched:** 2026-03-26
-**Confidence:** HIGH (core stack), MEDIUM (notification interception), LOW (notification suppression)
+**Researched:** 2026-03-27
+**Confidence:** HIGH (packaging), HIGH (autostart mechanism), MEDIUM (winrt bundling hooks)
+
+---
+
+## Scope
+
+This file covers ONLY the new stack additions needed for v1.1. The existing validated stack
+(PyQt6 6.10.2, Pillow, pywin32 311, winrt-* 3.2.1, multiprocessing.Queue, config.json
+hot-reload) is not re-researched here.
+
+The two new capabilities are:
+1. Host autostart at Windows login (no terminal window)
+2. Control panel packaged as a standalone .exe (no Python environment required)
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies
+### New Core Technologies
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| Python | 3.12.x | Runtime | Mature LTS release; pywin32 311 and PyQt6 6.10.x are both validated against it. Python 3.13 is the newest release but 3.12 has broader ecosystem validation for Windows GUI work as of early 2026. |
-| PyQt6 | 6.10.2 | Host display window, control panel UI, all rendering | Only Python GUI framework that exposes the full Qt6 rendering pipeline (`QPainter`, `QPixmap`, compositing) without a separate runtime install. `QScreen` API handles multi-monitor geometry correctly. GPL license acceptable for a personal tool; commercial license available if needed. |
-| pywin32 | 311 | Windows API access — win32api, win32gui, win32con, COM | Required for Windows message hooks, COM automation, and higher-level Win32 wrappers. Provides `win32api.ClipCursor()` directly without raw ctypes struct wrangling. Also needed if WMI queries or shell integration are added later. |
-| watchdog | 6.0.0 | File system event monitoring for config.json hot-reload | Uses `ReadDirectoryChangesW` with I/O completion ports on Windows — this is the correct native backend, not polling. Callback-based; integrates cleanly with a QThread wrapper. |
-| winrt-runtime + winrt-Windows.UI.Notifications.Management | 3.2.1 | Read and dismiss Windows toast notifications from other apps | Official Python projection of WinRT APIs, maintained by the pywinrt project. The only supported Python path to `UserNotificationListener`. Provides `GetNotificationsAsync`, `RemoveNotification`, and the `NotificationChanged` event. |
+| PyInstaller | 6.19.0 | Package control_panel into standalone .exe | Defacto standard for Python .exe distribution. Has explicit PyQt6 hooks in pyinstaller-hooks-contrib. Works out-of-the-box with PyQt6 — no spec-file customization needed for a pure PyQt6+pywin32 app. Does not require a C toolchain. Latest release Feb 14 2026 confirms active maintenance. |
+| winreg (stdlib) | built-in | Read/write HKCU Run key for autostart | Already available — no new install. Python's built-in `winreg` module provides direct access to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Zero new dependencies. Simpler and more predictable than win32com.client for this single-purpose task. |
 
 ### Supporting Libraries
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| winrt-Windows.Foundation | 3.2.1 | WinRT async plumbing (`IAsyncOperation`) | Required alongside any winrt-Windows.* package; handles async method calls from synchronous Python context |
-| winrt-Windows.ApplicationModel | 3.2.1 | `AppInfo` access on `UserNotification` objects | Needed to read the originating app's display name and icon from a captured notification |
-| ctypes (stdlib) | built-in | Direct Win32 calls where pywin32 is overkill | `ClipCursor` can be called via `ctypes.windll.user32.ClipCursor` with a `ctypes.wintypes.RECT`; no extra install needed. Use ctypes for one-off Win32 calls, pywin32 for anything requiring COM or complex Win32 message handling. |
-| multiprocessing (stdlib) | built-in | `Queue` for host-widget IPC | Mandated by project constraints. `multiprocessing.Queue` is process-safe and pickle-based. Widget processes push state dicts or draw data; the host consumes from a dedicated QThread. |
-| json (stdlib) | built-in | config.json read/write | No dependency needed; watchdog triggers the reload, json.load() parses it. |
-| dataclasses (stdlib) | built-in | Typed config and message schemas | Use `@dataclass` for queue message payloads to enforce shape at the widget boundary without adding a schema library. |
+| pyinstaller-hooks-contrib | auto (bundled with PyInstaller) | Community hooks that tell PyInstaller what to collect for PyQt6, pywin32, and other packages | Automatically installed as a PyInstaller dependency; no explicit install needed. Provides the PyQt6 hook that handles Qt plugin DLLs and platform plugins. |
 
 ### Development Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| venv | Isolated Python environment | `python -m venv .venv` at repo root; activate before all pip operations |
-| pip | Package installation | Use `pip install -r requirements.txt`; pin versions with `pip freeze` after initial install |
-| Qt Designer (via pyqt6-tools) | Visual layout for control panel | `pip install pyqt6-tools` installs `designer.exe`; optional but useful for control panel layout work |
-| pyqt6-tools | Qt Designer + pyrcc6 for the control panel | Version should match installed PyQt6 minor version |
+| PyInstaller CLI | Build the standalone .exe | `pyinstaller --onedir --noconsole --name MonitorControlPanel control_panel/__main__.py` |
+| pyi-makespec | Generate a .spec file for custom build configuration | Use if hidden imports for winrt packages need to be specified manually |
 
 ---
 
 ## Installation
 
 ```bash
-# Create and activate virtual environment
-python -m venv .venv
-.venv\Scripts\activate
+# Packaging tool (build-time only, not shipped with users)
+pip install pyinstaller==6.19.0
 
-# Core framework
-pip install PyQt6==6.10.2
-pip install pywin32==311
-pip install watchdog==6.0.0
+# winreg is stdlib — no install needed
+```
 
-# WinRT notification packages (install all required namespaces)
-pip install winrt-runtime==3.2.1
-pip install "winrt-Windows.UI.Notifications.Management==3.2.1"
-pip install "winrt-Windows.Foundation==3.2.1"
-pip install "winrt-Windows.ApplicationModel==3.2.1"
+---
 
-# Optional dev tooling
-pip install pyqt6-tools
+## Autostart Mechanism: HKCU Run Key (Recommended)
+
+**Use `winreg` to set `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.**
+
+### Why HKCU Run Key over Task Scheduler
+
+| Criterion | HKCU Run Key | Task Scheduler |
+|-----------|-------------|----------------|
+| Requires admin rights | No — HKCU is user-writable | No for logon trigger; Yes for some settings |
+| Console window suppression | Trivial: point entry at pythonw.exe | Requires "Run whether user is logged on or not" / window-station config |
+| Implementation complexity | ~15 lines of stdlib winreg | ~60+ lines of win32com.client COM automation |
+| User can toggle in Settings | Yes — Windows Settings > Apps > Startup shows Run-key entries | Partially — Task Scheduler UI only, not in Settings |
+| Dependencies needed | None (stdlib winreg) | win32com.client (already have via pywin32, but more fragile API) |
+| Reliability | High for user-session apps | High; preferred for system-level or scheduled tasks |
+| Windows Settings visibility | Windows 11 Startup apps page shows Run-key entries | Does not appear in Startup apps page |
+
+**Verdict:** HKCU Run key is the correct choice for a user-session desktop app. It requires no admin elevation, suppresses the console window by pointing at `pythonw.exe`, appears in Windows Settings Startup apps (familiar UX), and needs only stdlib `winreg`. Task Scheduler adds complexity with no benefit for this use case.
+
+### No-Console Launch Pattern
+
+To launch the host without a terminal window, the Run key value must point to `pythonw.exe` (not `python.exe`). `pythonw.exe` is the Windows subsystem variant that starts with `CREATE_NO_WINDOW` — no console is ever created.
+
+```
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+"MonitorControl" = "C:\path\to\pythonw.exe C:\path\to\project\host\main.py"
+```
+
+The control panel uses `winreg` to write/delete this entry based on the autostart toggle. The host path should be resolved at toggle-time using `sys.executable` (which resolves to the active Python interpreter) and `__file__`.
+
+### winreg Implementation Pattern
+
+```python
+import winreg
+import sys
+from pathlib import Path
+
+APP_NAME = "MonitorControl"
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+def _pythonw_exe() -> str:
+    # sys.executable is python.exe; pythonw.exe lives alongside it
+    return str(Path(sys.executable).parent / "pythonw.exe")
+
+def enable_autostart(host_main: Path) -> None:
+    value = f'"{_pythonw_exe()}" "{host_main}"'
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0,
+                        winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, value)
+
+def disable_autostart() -> None:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0,
+                            winreg.KEY_SET_VALUE) as key:
+            winreg.DeleteValue(key, APP_NAME)
+    except FileNotFoundError:
+        pass  # already absent
+
+def is_autostart_enabled() -> bool:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            winreg.QueryValueEx(key, APP_NAME)
+            return True
+    except FileNotFoundError:
+        return False
+```
+
+---
+
+## Packaging: PyInstaller for Control Panel .exe
+
+### Why PyInstaller Over Alternatives
+
+| Tool | Status | Why Not |
+|------|--------|---------|
+| PyInstaller 6.19.0 | Actively maintained, released Feb 2026 | Recommended |
+| cx_Freeze 8.6.0 | Actively maintained (Feb 2026 release) | More manual spec configuration needed; hook ecosystem smaller than PyInstaller-hooks-contrib; PyInstaller is the community standard for PyQt apps |
+| Nuitka | Actively maintained, compiles to C++ | Requires MSVC or MinGW C toolchain; longer build times; overkill for a personal tool where startup performance is not critical; False-positive improvement is irrelevant for internal distribution |
+| PyOxidizer | Last release Dec 2022 | Effectively unmaintained; use only if single-binary Rust embedding is a hard requirement |
+
+### PyInstaller + PyQt6 Integration
+
+PyInstaller 6.x ships with `pyinstaller-hooks-contrib`, which provides the PyQt6 hook. This hook automatically:
+- Collects Qt platform plugins (`platforms/qwindows.dll`)
+- Collects Qt6 DLLs (Core, Gui, Widgets)
+- Handles the `PyQt6.sip` module
+
+No `--hidden-import PyQt6` or `collect_submodules` is needed for standard PyQt6 usage.
+
+### pywin32 Bundling Note
+
+pyinstaller-hooks-contrib includes a pywin32 runtime hook that manages `pywin32_system32` DLL placement. A known issue exists where the pywin32 runtime hook modifies PATH in a way that conflicts with Qt's OpenSSL DLL resolution (fixed in PyInstaller 6.x for the `pywin32_system32` subdirectory interaction — see changelog). If Qt SSL errors appear in the packaged .exe, the fix is using PyInstaller >= 6.5.0.
+
+The control panel does NOT use pywin32 (`winreg` is stdlib). This means the pywin32 hook interaction is not a concern for the control panel .exe.
+
+### winrt Bundling
+
+No hook for `winrt-*` packages exists in `pyinstaller-hooks-contrib`. However, the **control panel does not use winrt**. winrt is only used by the host's notification widget subprocess. The control panel only uses PyQt6 + stdlib (json, winreg, os, pathlib). No winrt hidden imports are needed for the control panel build.
+
+If the host were ever packaged (not in scope for v1.1), winrt bundling would require a custom hook or `--collect-all winrt` flags and testing.
+
+### multiprocessing and freeze_support
+
+The control panel (`control_panel/__main__.py`) does not use `multiprocessing`. It is a pure PyQt6 + stdlib app. `freeze_support()` is not required. The packaging path is straightforward.
+
+### Build Mode: onedir (Recommended)
+
+Use `--onedir` (the default), not `--onefile`.
+
+- `--onefile` extracts to a temp directory on each launch, causing slower startup and more frequent antivirus false positives (extraction pattern resembles malware unpacking behavior).
+- `--onedir` produces a folder with the .exe and its DLLs; the .exe launches directly with no extraction step.
+- For a personal tool distributed by copying a folder, `--onedir` is simpler and more reliable.
+
+### Console Suppression: --noconsole
+
+Use `--noconsole` (alias: `--windowed`) so no black terminal window flashes when the user opens the control panel. With `--noconsole`, `sys.stdin`, `sys.stdout`, and `sys.stderr` become `None` in the packaged exe. Any code that accesses these directly (e.g., `print()` to console) will raise `AttributeError`. The control panel has no console output so this is not a concern, but note it for future debugging: use file logging rather than print statements in packaged builds.
+
+### Canonical Build Command
+
+```bash
+pyinstaller \
+  --onedir \
+  --noconsole \
+  --name MonitorControlPanel \
+  --icon assets/icon.ico \
+  control_panel/__main__.py
+```
+
+Or via a `.spec` file for reproducible builds (preferred):
+
+```python
+# MonitorControlPanel.spec
+# -*- mode: python ; coding: utf-8 -*-
+
+a = Analysis(
+    ['control_panel/__main__.py'],
+    pathex=[],
+    binaries=[],
+    datas=[],
+    hiddenimports=[],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name='MonitorControlPanel',
+    console=False,  # --noconsole
+    icon='assets/icon.ico',
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    name='MonitorControlPanel',
+)
 ```
 
 ---
@@ -68,13 +223,11 @@ pip install pyqt6-tools
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| PyQt6 6.10.2 | PySide6 6.10.2 | PySide6 is the Qt Company's official binding and uses LGPL, which is more permissive. Choose PySide6 if the project ever needs to be commercially distributed without purchasing a PyQt6 commercial license. API is ~95% identical; migration cost is low. |
-| PyQt6 | tkinter | Never for this project — tkinter has no compositing pipeline, no proper multi-monitor screen enumeration via QScreen, and no native Windows-style styling. |
-| PyQt6 | Dear PyGui / ImGui | Consider only if the host ever needs GPU-accelerated rendering at high refresh rates. Not appropriate here: no windowing model for borderless always-on-top window management, and multi-monitor geometry is manual. |
-| pywin32 (win32api.ClipCursor) | ctypes.windll.user32.ClipCursor | Use raw ctypes if you want zero dependencies for the cursor lock. The ctypes approach requires manually defining `RECT` as a ctypes Structure; pywin32 wraps this cleanly. For a project already depending on pywin32 for other Win32 work, use pywin32. |
-| watchdog | QFileSystemWatcher (Qt built-in) | `QFileSystemWatcher` is usable and avoids the extra dependency. However, watchdog gives a richer event API (modified/created/deleted/moved) and better Windows backend. Use `QFileSystemWatcher` only if you want to eliminate the watchdog dependency entirely. |
-| winrt-Windows.UI.Notifications.Management | winsdk | Do not use `winsdk`. It was archived October 2024. The replacement is the modular per-namespace `winrt-*` packages from the pywinrt project. |
-| Python 3.12 | Python 3.13 | Python 3.13 is production-ready and supported by PyQt6 6.10.x and pywin32 311. Choose 3.13 if the team wants the latest GIL-optional features or performance improvements. 3.12 is recommended for slightly broader tool ecosystem compatibility. |
+| HKCU Run key (winreg) | Task Scheduler via win32com.client | Use Task Scheduler if: (a) elevated privileges are needed at launch, (b) the task must run before user logon, (c) the task needs retry-on-failure or execution time limits. None of these apply to a user-session GUI app. |
+| HKCU Run key (winreg) | Windows Startup folder shortcut | Startup folder is a valid simple alternative. Requires creating a .lnk shortcut file programmatically (needs `winshell` or win32com.client shell dispatch). More file system coupling than registry. Appears in the same Windows Settings Startup apps page as Run keys. Choose only if you want to avoid registry writes on principle. |
+| HKCU Run key (winreg) | HKLM Run key | Use HKLM if the app must start for ALL users on the machine. Requires admin elevation to write. Not appropriate here — this is a single-user personal tool. |
+| PyInstaller --onedir | PyInstaller --onefile | Use --onefile only if distributing via a single-file download where folder complexity is a problem. The single-file extraction step hurts startup time and antivirus reputation. For a personal tool, onedir is strictly better. |
+| PyInstaller | Nuitka | Use Nuitka if you need smaller exe size, faster runtime, or significantly lower antivirus false positive rates (e.g., enterprise distribution with strict endpoint security). Build complexity and C toolchain requirement make it overkill for a personal project. |
 
 ---
 
@@ -82,108 +235,31 @@ pip install pyqt6-tools
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `winsdk` (monolithic) | Archived October 2024; no longer maintained. Import paths differ from the replacement. | Modular `winrt-*` packages from pywinrt (winrt-runtime, winrt-Windows.UI.Notifications.Management, etc.) |
-| `plyer` for notifications | Sends notifications; cannot read or remove existing ones. API surface is too thin for this use case. | `winrt-Windows.UI.Notifications.Management` |
-| `win10toast` / `win11toast` | These are notification senders, not listeners. Actively misleading for this use case. | `winrt-Windows.UI.Notifications.Management` for listening; `winrt-Windows.UI.Notifications` for sending |
-| `QTimer` for queue polling in the host | Polling the multiprocessing.Queue from the main event loop timer can cause UI stutter under load. | Dedicated `QThread` subclass that blocks on `queue.get()` and emits a Qt signal; the host slot updates the canvas safely. |
-| `threading.Thread` for queue drain | Non-Qt threads cannot touch Qt objects. A raw thread draining a queue and calling widget methods directly will segfault or produce undefined behavior. | `QThread` with signal emission only; all Qt operations happen in slots on the main thread. |
-| Shared memory (`multiprocessing.shared_memory`) | Not supported by the IPC constraint and introduces complex synchronization. Raw pixel buffers in shared memory are fast but the constraint explicitly mandates queues. | `multiprocessing.Queue` with serialized payload dicts or numpy arrays if raw frame data is ever needed. |
-| `pywin32-ctypes` | This is a reimplementation of only a small pywin32 subset using ctypes/cffi; it lacks win32gui, win32api, and COM support needed here. | Full `pywin32` package. |
+| `winsdk` (monolithic) | Archived October 2024 — confirmed in PROJECT.md out-of-scope list | Modular `winrt-*` packages (already in use) |
+| Task Scheduler for user-session autostart | Overkill; COM API complexity; does not appear in Windows Settings Startup apps list | HKCU Run key via `winreg` |
+| win32com.client for registry writes | win32com.client is for COM automation; `winreg` is stdlib and purpose-built for registry access | `winreg` (stdlib) |
+| PyInstaller `--onefile` | Slower startup, higher antivirus false-positive rate due to extraction pattern | `--onedir` |
+| `schtasks.exe` subprocess calls | Requires shell=True or subprocess call to external binary; fragile CLI parsing; no error objects | `winreg` for user autostart, `win32com.client` only if full Task Scheduler feature set is needed |
+| PyOxidizer | Last release Dec 2022; effectively unmaintained | PyInstaller 6.x |
+| Hardcoding Python paths in the Run key | Breaks if Python is reinstalled, env changes, or project moves | Resolve paths dynamically at toggle-time using `sys.executable` and `Path(__file__).resolve()` |
 
 ---
 
 ## Stack Patterns by Variant
 
-**Notification widget: reading and surfacing notifications**
+**If autostart is being set from a packaged control_panel.exe (future v1.2+):**
 
-The `UserNotificationListener` API reads notifications that have already been shown in the Windows notification center. It cannot intercept or suppress a notification before it appears on screen. This is a hard Windows API constraint — the listener fires after the OS has already displayed the toast.
+When the control panel is a standalone .exe, `sys.executable` resolves to `MonitorControlPanel.exe`, not `pythonw.exe`. In that case, the autostart Run key must point to the host's `pythonw.exe` path, which cannot be derived from `sys.executable` inside a packaged control panel. The host Python path must be stored in `config.json` at install time or resolved via the registry (`HKCU\Software\Python\PythonCore`).
 
-Design implication: the notification widget surfaces notifications in the utility bar by polling/event-driven reading from `UserNotificationListener`, and calls `RemoveNotification(id)` to dismiss them from the Action Center. It does not suppress the initial on-screen toast popup.
+For v1.1, the autostart feature is expected to be set while running in a Python environment (not from the packaged .exe), so `sys.executable` works correctly. Document this limitation for the future.
 
-If pre-display suppression is required, the only known approach is programmatically enabling "Focus Assist / Do Not Disturb" via undocumented registry keys or the Windows Settings app, which is fragile and not recommended. This capability should be flagged as a likely phase-specific research item.
+**If PyInstaller build fails due to missing imports:**
 
-**If you want to dismiss toasts from Action Center after they appear:**
-- Use `winrt.windows.ui.notifications.management.UserNotificationListener`
-- Call `RequestAccessAsync()` once from the UI thread; user must grant permission in Windows Settings → Notifications → Notification access
-- Subscribe to `NotificationChanged` event or poll `GetNotificationsAsync(NotificationKinds.Toast)` on a timer
-- Call `RemoveNotification(notif.Id)` to dismiss
+Run the built .exe from a terminal (temporarily remove `--noconsole`) to see the `ModuleNotFoundError`. Add the missing module to `hiddenimports` in the .spec file. Common candidates for PyQt6 apps: `PyQt6.sip`, `PyQt6.QtPrintSupport`.
 
-**If you want pre-display suppression (not currently feasible cleanly):**
-- The Windows API does not expose a supported hook to intercept another app's toast before display
-- The only partial workaround is enabling Focus Assist / Do Not Disturb mode system-wide via the registry (undocumented path, Windows version sensitive)
-- Flag this for phase research; the MVP notification widget should be scoped to post-display surfacing and dismissal only
+**If Windows Defender flags the built .exe:**
 
-**Host window targeting Display 3:**
-
-```python
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
-
-screens = QApplication.screens()
-# Find target screen by geometry (1920x515 strip positioned below primaries)
-target = next(
-    (s for s in screens if s.geometry().height() == 515),
-    screens[-1]  # fallback to last screen
-)
-window.move(target.geometry().topLeft())
-window.resize(1920, 515)
-window.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-window.showFullScreen()
-```
-
-Use `QApplication.screens()` not the deprecated `QDesktopWidget`. Enumerate by geometry to identify Display 3 reliably.
-
-**ClipCursor with ctypes (preferred over pywin32 for this single call):**
-
-```python
-import ctypes
-from ctypes import wintypes
-
-# Define the exclusion rect (everything except Display 3)
-# Display 3 geometry must be known at startup; invert it to define the allowed zone
-user32 = ctypes.windll.user32
-
-class RECT(ctypes.Structure):
-    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-
-def lock_cursor_away_from_display3(allowed_rect: RECT):
-    user32.ClipCursor(ctypes.byref(allowed_rect))
-
-def unlock_cursor():
-    user32.ClipCursor(None)
-```
-
-Note: ClipCursor only supports a single rectangle. If Display 3 is not at the edge of the virtual desktop but is positioned below the primaries (as described), the allowed rect can be set to the bounding box of Display 1 + Display 2 only. This works correctly as long as the three monitors don't share overlapping X or Y ranges that would accidentally block part of a primary.
-
-**QThread queue monitor pattern:**
-
-```python
-from PyQt6.QtCore import QThread, pyqtSignal
-import queue
-
-class QueueMonitorThread(QThread):
-    message_received = pyqtSignal(dict)
-
-    def __init__(self, q: multiprocessing.Queue):
-        super().__init__()
-        self._queue = q
-        self._running = True
-
-    def run(self):
-        while self._running:
-            try:
-                msg = self._queue.get(timeout=0.1)
-                self.message_received.emit(msg)
-            except queue.Empty:
-                continue
-
-    def stop(self):
-        self._running = False
-        self.wait()
-```
-
-Connect `message_received` to a slot on the host widget canvas to update the display safely from the main thread.
+Build PyInstaller's bootloader from source (documented in PyInstaller docs). This replaces the shared bootloader binary that antivirus databases recognize. For a personal tool never distributed publicly, this step is optional — just add an exclusion in Windows Defender.
 
 ---
 
@@ -191,30 +267,30 @@ Connect `message_received` to a slot on the host widget canvas to update the dis
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| PyQt6 6.10.2 | Python 3.9–3.14 | Confirmed via PyPI metadata; 3.12 recommended for stability |
-| pywin32 311 | Python 3.8–3.14, Windows x64/x86/ARM64 | July 2025 release; binary-only via pip (no exe installer since build 306) |
-| watchdog 6.0.0 | Python 3.9+ | Released Nov 2024; uses ReadDirectoryChangesW on Windows (no polling) |
-| winrt-Windows.UI.Notifications.Management 3.2.1 | Python 3.9–3.14, Windows x86/x64/ARM64 | June 2025 release; requires winrt-runtime of same version |
-| winrt-runtime 3.2.1 | Python 3.9–3.14 | Must match version of all other winrt-* packages installed |
-| PyQt6 6.10.2 + pywin32 311 | No known conflicts | These operate independently; no shared DLL surface |
-| watchdog 6.0.0 + PyQt6 | No known conflicts | watchdog Observer runs on its own thread; use QueueMonitorThread or a signal bridge to push events to Qt |
+| PyInstaller 6.19.0 | Python 3.8–3.14 | Current as of Feb 14 2026; confirmed on PyPI |
+| PyInstaller 6.19.0 | PyQt6 6.10.2 | PyQt6 hook in pyinstaller-hooks-contrib covers Qt6; no version conflict |
+| PyInstaller 6.19.0 | pywin32 311 | pywin32 runtime hook in pyinstaller-hooks-contrib; known PATH interaction with Qt SSL fixed in 6.x |
+| winreg (stdlib) | Python 3.x, Windows only | No version to pin; always available on Windows Python |
+| PyInstaller 6.x | winrt-* 3.2.1 | No hook exists in pyinstaller-hooks-contrib; moot for control panel (does not import winrt) |
 
 ---
 
 ## Sources
 
-- [PyPI — PyQt6](https://pypi.org/project/PyQt6/) — version 6.10.2 confirmed (Jan 8, 2026 release date) — HIGH confidence
-- [PyPI — pywin32](https://pypi.org/project/pywin32/) — version 311 confirmed (Jul 14, 2025) — HIGH confidence
-- [PyPI — watchdog](https://pypi.org/project/watchdog/) — version 6.0.0, ReadDirectoryChangesW backend confirmed — HIGH confidence
-- [PyPI — winrt-Windows.UI.Notifications.Management](https://pypi.org/project/winrt-Windows.UI.Notifications.Management/) — version 3.2.1 (Jun 6, 2025) — HIGH confidence
-- [GitHub — pywinrt/python-winsdk (archived)](https://github.com/pywinrt/python-winsdk) — confirms winsdk deprecated Oct 2024, replaced by modular winrt-* — HIGH confidence
-- [Microsoft Learn — Notification Listener](https://learn.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/notification-listener) — confirms UserNotificationListener reads/removes after display; cannot suppress before display — HIGH confidence
-- [Microsoft Learn — ClipCursor](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-clipcursor) — rectangle-only constraint confirmed — HIGH confidence
-- [pythonguis.com — PyQt6 Multithreading with QThreadPool](https://www.pythonguis.com/tutorials/multithreading-pyqt6-applications-qthreadpool/) — QThread queue monitor pattern — MEDIUM confidence (community source, consistent with Qt docs)
-- WebSearch results for multi-monitor QScreen enumeration — MEDIUM confidence (community forums, consistent with Qt6 docs pattern)
-- Notification suppression via Focus Assist registry — LOW confidence (no official documented API; avoid)
+- [PyPI — PyInstaller](https://pypi.org/project/pyinstaller/) — version 6.19.0, release date Feb 14 2026 confirmed — HIGH confidence
+- [PyInstaller docs 6.19.0 — Common Issues and Pitfalls](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html) — noconsole stdout/stderr None, multiprocessing freeze_support requirements — HIGH confidence
+- [Qt for Python — Deployment with PyInstaller](https://doc.qt.io/qtforpython-6/deployment/deployment-pyinstaller.html) — official Qt endorsement of PyInstaller for PyQt6/PySide6 packaging — HIGH confidence
+- [PyInstaller changelog 6.19.0](https://pyinstaller.org/en/stable/CHANGES.html) — pywin32 PATH interaction with Qt SSL DLL fix confirmed in 6.x — HIGH confidence
+- [Python docs — winreg](https://docs.python.org/3/library/winreg.html) — stdlib module, Windows-only, HKCU/HKLM access — HIGH confidence
+- [PyInstaller GitHub issue #8857](https://github.com/pyinstaller/pyinstaller/issues/8857) — Qt OpenSSL DLL conflict with pywin32 runtime hook details — MEDIUM confidence
+- [PyInstaller Wiki — Recipe Multiprocessing](https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing) — freeze_support requirement details — HIGH confidence
+- [pyinstaller-hooks-contrib GitHub](https://github.com/pyinstaller/pyinstaller-hooks-contrib) — confirmed community hooks repository; no winrt hook found — MEDIUM confidence (browse-based verification)
+- WebSearch — PyOxidizer last release Dec 2022 confirmed via GitHub — HIGH confidence
+- WebSearch — cx_Freeze 8.6.0 released Feb 2026 (actively maintained alternative) — MEDIUM confidence
+- WebSearch — Nuitka antivirus false positive improvement vs PyInstaller comparison — MEDIUM confidence (community articles, not official benchmarks)
+- WebSearch — HKCU Run key vs Task Scheduler tradeoffs, Windows Settings Startup app visibility — MEDIUM confidence (multiple consistent community sources)
 
 ---
 
-*Stack research for: MonitorControl — Python/PyQt6 desktop widget framework, Windows, 1920x515 secondary display*
-*Researched: 2026-03-26*
+*Stack research for: MonitorControl v1.1 — Windows autostart and standalone .exe packaging additions*
+*Researched: 2026-03-27*
