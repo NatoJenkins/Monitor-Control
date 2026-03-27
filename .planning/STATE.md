@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Startup & Distribution
 status: completed
-stopped_at: Completed 05-01-PLAN.md (Phase 5 Plan 01 — path resolution & null-guard)
-last_updated: "2026-03-27T07:34:25.619Z"
+stopped_at: Completed 06-01-PLAN.md (Phase 6 Plan 01 — autostart toggle)
+last_updated: "2026-03-27T12:18:09.250Z"
 last_activity: 2026-03-27 — Phase 5 Plan 01 executed (path resolution + null-guard)
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
   percent: 33
 ---
 
@@ -49,6 +49,7 @@ Progress: [███░░░░░░░] 33% (v1.1 — 1/3 phases complete)
 | 4. Notification Interceptor | 2 | 2026-03-27 |
 
 *v1.1 metrics will populate during execution*
+| Phase 06 P01 | 5 | 4 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Progress: [███░░░░░░░] 33% (v1.1 — 1/3 phases complete)
 - [v1.1]: PyInstaller --onedir (not --onefile) — faster startup, no AV temp-extraction, multiprocessing-compatible
 - [v1.1 Phase 5]: get_config_path() uses _PROJECT_ROOT = Path(__file__).resolve().parent.parent — cwd-independent, works under pythonw.exe, HKCU Run key, and PyInstaller
 - [v1.1 Phase 5]: Null-guard placed before ALL imports in host/main.py — no window where print() can crash before stdout is safe
+- [Phase 06]: Function-level imports in _load_values and _on_autostart_toggled prevent winreg from importing at module load time, enabling test isolation
+- [Phase 06]: blockSignals guard wraps setChecked() in _load_values() to prevent spurious registry writes on every panel open (STRT-03)
 
 ### Pending Todos
 
@@ -74,6 +77,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27
-Stopped at: Completed 05-01-PLAN.md (Phase 5 Plan 01 — path resolution & null-guard)
+Last session: 2026-03-27T12:18:09.247Z
+Stopped at: Completed 06-01-PLAN.md (Phase 6 Plan 01 — autostart toggle)
 Resume file: None

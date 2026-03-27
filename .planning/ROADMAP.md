@@ -24,7 +24,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Milestone Goal:** Make MonitorControl feel like finished software — autostart on login and a distributable control panel .exe.
 
 - [x] **Phase 5: Path Resolution & Freeze Safety** - Fix config path resolution and console-null-guard so both entry points work from any launch context (completed 2026-03-27)
-- [ ] **Phase 6: Autostart Toggle** - Control panel Startup tab that reads/writes HKCU Run key to enable host autostart at Windows login
+- [x] **Phase 6: Autostart Toggle** - Control panel Startup tab that reads/writes HKCU Run key to enable host autostart at Windows login (completed 2026-03-27)
 - [ ] **Phase 7: Control Panel Packaging** - PyInstaller --onedir --noconsole build producing a standalone MonitorControl.exe
 
 ## Phase Details
@@ -51,7 +51,7 @@ Plans:
   2. Unchecking the toggle removes the HKCU Run entry; host no longer launches at login
   3. Opening the control panel always reflects the live registry state of the toggle (not cached — re-reads HKCU on every panel open)
   4. The Startup tab displays "MonitorControl will start automatically at next login" when the toggle is checked
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 06-01-PLAN.md — Registry module + launcher script + Startup tab with live HKCU toggle
@@ -81,7 +81,7 @@ Plans:
 | 3. Pomodoro + Calendar Widgets | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 4. Notification Interceptor | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
-| 6. Autostart Toggle | v1.1 | 0/1 | Planned | - |
+| 6. Autostart Toggle | 1/1 | Complete   | 2026-03-27 | - |
 | 7. Control Panel Packaging | v1.1 | 0/? | Not started | - |
 
 ---

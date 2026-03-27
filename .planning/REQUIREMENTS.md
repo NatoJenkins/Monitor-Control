@@ -9,11 +9,11 @@ Requirements for v1.1 Startup & Distribution milestone. Each maps to roadmap pha
 
 ### Autostart
 
-- [ ] **STRT-01**: User can enable host autostart at Windows login from the control panel Startup tab
-- [ ] **STRT-02**: User can disable host autostart from the control panel Startup tab
-- [ ] **STRT-03**: Autostart toggle reflects live HKCU registry state (reads current entry on every panel open, not cached)
-- [ ] **STRT-04**: Host launches without a terminal or console window when autostarted
-- [ ] **STRT-05**: Control panel Startup tab shows status label when autostart is active ("MonitorControl will start automatically at next login")
+- [x] **STRT-01**: User can enable host autostart at Windows login from the control panel Startup tab
+- [x] **STRT-02**: User can disable host autostart from the control panel Startup tab
+- [x] **STRT-03**: Autostart toggle reflects live HKCU registry state (reads current entry on every panel open, not cached)
+- [x] **STRT-04**: Host launches without a terminal or console window when autostarted
+- [x] **STRT-05**: Control panel Startup tab shows status label when autostart is active ("MonitorControl will start automatically at next login")
 
 ### Infrastructure
 
@@ -63,11 +63,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | INFRA-01 | Phase 5 | Complete (2026-03-27) |
 | INFRA-02 | Phase 5 | Complete (2026-03-27) |
-| STRT-01 | Phase 6 | Pending |
-| STRT-02 | Phase 6 | Pending |
-| STRT-03 | Phase 6 | Pending |
-| STRT-04 | Phase 6 | Pending |
-| STRT-05 | Phase 6 | Pending |
+| STRT-01 | Phase 6 | Complete |
+| STRT-02 | Phase 6 | Complete |
+| STRT-03 | Phase 6 | Complete |
+| STRT-04 | Phase 6 | Complete |
+| STRT-05 | Phase 6 | Complete |
 | PKG-01 | Phase 7 | Pending |
 | PKG-02 | Phase 7 | Pending |
 | PKG-03 | Phase 7 | Pending |
