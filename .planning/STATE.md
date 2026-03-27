@@ -2,29 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 0 / TBD
-status: unknown
-last_updated: "2026-03-27T04:12:50.300Z"
+current_plan: 1 / 2
+status: in_progress
+last_updated: "2026-03-27T05:13:14.506Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 3 complete (hardware verified); ready for Phase 4
+`IN_PROGRESS` — Phase 4 Plan 01 complete (WinRT spike validated); ready for Plan 02
 
 ## Current Phase
 Phase 4 — Notifications Widget
-Current Plan: 0 / TBD
+Current Plan: 1 / 2
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
 [##########] Phase 2 complete — hardware verified (2/2 plans)
 [##########] Phase 3 complete — hardware verified (2/2 plans)
+[█████░░░░░] Phase 4 in progress (1/2 plans)
 
 ## Milestone
 v1.0 — initial release
@@ -35,13 +36,13 @@ v1.0 — initial release
 - Phase 3 — Pomodoro + Calendar Widgets (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 3 Plan 02 fully (all 3 tasks): hardware verified on Display 3, fixed alt-tab mouse containment bug (WM_ACTIVATEAPP deactivate path now re-applies ClipCursor). 88 tests passing.
+2026-03-26 — Completed Phase 4 Plan 01 (WinRT subprocess spike). All 3 concerns validated on real hardware: asyncio.run() OK in spawn subprocess, GetAccessStatus ALLOWED cross-process, 20 notifications polled. creation_time is Python datetime (UTC). Event subscription fails as expected — polling architecture confirmed. 88 tests passing.
 
 ## Stopped At
-Phase 3 complete. Next: Phase 4 (Notifications widget — WinRT async spike first).
+Completed 04-01-PLAN.md (WinRT spike). Next: Phase 4 Plan 02 (notification widget build).
 
 ## Next Action
-Begin Phase 4: WinRT async subprocess spike, then build notifications widget.
+Begin Phase 4 Plan 02: build NotificationWidget with polling architecture using validated WinRT patterns.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -82,14 +83,18 @@ Begin Phase 4: WinRT async subprocess spike, then build notifications widget.
 - [Phase 03]: window._cmd_watcher = cmd_watcher stored at window level for GC prevention — same pattern as Win32MessageFilter. (03-02)
 - [Phase 03]: write_pomodoro_command uses tempfile.mkstemp(dir=same_dir) for same-filesystem atomic rename guarantee on Windows. (03-02)
 - [Phase 03]: WM_ACTIVATEAPP deactivate (wParam=0) also re-applies ClipCursor — Windows calls ClipCursor(NULL) when a different app gains focus; both activate and deactivate paths now trigger on_clip_needed() so mouse containment persists across alt-tab. (03-02 bug fix)
+- [Phase 04]: Use POLLING (get_notifications_async at 2s interval) not event subscription -- add_notification_changed raises OSError WinError -2147023728 on python.org Python (confirmed in 04-01 spike)
+- [Phase 04]: get_binding("ToastGeneric") string form required -- KnownNotificationBindings.TOAST_GENERIC constant absent in winrt-Windows.UI.Notifications==3.2.1 (04-01 spike)
+- [Phase 04]: creation_time is Python datetime (UTC-aware) -- format with n.creation_time.astimezone().strftime('%H:%M') for local time; no .to_datetime() conversion needed (04-01 spike)
+- [Phase 04]: Six winrt packages required (not two) -- Management + Notifications + Foundation + Foundation.Collections + ApplicationModel + runtime; all pinned to ==3.2.1 (04-01 spike)
 
 ## Blockers
 None
 
 ## Open Questions
-1. WinRT async in subprocess — spike required in Phase 4 plan 04-01 before widget build
+1. ~~WinRT async in subprocess — spike required in Phase 4 plan 04-01 before widget build~~ RESOLVED: asyncio.run() works in spawn subprocess; polling confirmed; see 04-01-SUMMARY.md
 2. ClipCursor RECT geometry across mixed-DPI 3-monitor layout — validate on real hardware in Phase 1
-3. Notification permission persistence across host restarts — confirm during Phase 4 spike
+3. ~~Notification permission persistence across host restarts — confirm during Phase 4 spike~~ RESOLVED: GetAccessStatus() returns ALLOWED in subprocess after host-granted permission; user-level system state confirmed cross-process
 
 ## Performance Metrics
 
@@ -102,4 +107,5 @@ None
 | 02 | 02 | 1800 | 2/2 | 8 |
 | 03 | 01 | 360 | 3/3 | 15 |
 | 03 | 02 | 232 | 2/3 | 4 |
+| Phase 04 P01 | 419 | 2 tasks | 4 files |
 
