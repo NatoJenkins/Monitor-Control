@@ -67,3 +67,49 @@ class TestWindowPlacement:
         # Cleanup
         window.hide()
         window.destroy()
+
+
+class TestWindowBgColor:
+    """BG-01: Host window owns background color with configurable _bg_qcolor."""
+
+    def test_default_bg_color(self, qapp_instance):
+        """HostWindow._bg_qcolor defaults to #1a1a2e (matching v1.1 hardcoded value)."""
+        from host.window import HostWindow
+        window = HostWindow()
+        assert window._bg_qcolor.name() == "#1a1a2e", (
+            f"Default bg color must be #1a1a2e, got {window._bg_qcolor.name()}"
+        )
+        window.hide()
+        window.destroy()
+
+    def test_set_bg_color_updates_qcolor(self, qapp_instance):
+        """set_bg_color(hex_str) updates _bg_qcolor to the given color."""
+        from host.window import HostWindow
+        window = HostWindow()
+        window.set_bg_color("#ff0000")
+        assert window._bg_qcolor.name() == "#ff0000", (
+            f"After set_bg_color('#ff0000'), expected #ff0000, got {window._bg_qcolor.name()}"
+        )
+        window.hide()
+        window.destroy()
+
+    def test_set_bg_color_invalid_is_noop(self, qapp_instance):
+        """set_bg_color with invalid hex leaves _bg_qcolor unchanged."""
+        from host.window import HostWindow
+        window = HostWindow()
+        original = window._bg_qcolor.name()
+        window.set_bg_color("notacolor")
+        assert window._bg_qcolor.name() == original, (
+            f"Invalid color should not change _bg_qcolor"
+        )
+        window.hide()
+        window.destroy()
+
+    def test_has_set_bg_color_method(self, qapp_instance):
+        """HostWindow exposes set_bg_color(hex_str) method."""
+        from host.window import HostWindow
+        window = HostWindow()
+        assert hasattr(window, 'set_bg_color'), "HostWindow must have set_bg_color method"
+        assert callable(window.set_bg_color), "set_bg_color must be callable"
+        window.hide()
+        window.destroy()
