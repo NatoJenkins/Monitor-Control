@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Configurable Colors
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-27T22:00:37.783Z"
-last_activity: 2026-03-27 — 09-01 complete (bg_color config schema + hot-reload wiring)
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-27T22:05:17.134Z"
+last_activity: 2026-03-27 — 09-02 complete (calendar time_color/date_color config-driven via _safe_hex_color)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 38
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 9 — Config Schema + Host Hot-Reload Wiring
-Plan: 01 (complete)
-Status: Phase 09 in progress — 1 of 2 plans done
-Last activity: 2026-03-27 — 09-01 complete (bg_color config schema + hot-reload wiring)
+Plan: 02 (complete)
+Status: Phase 09 complete — 2 of 2 plans done
+Last activity: 2026-03-27 — 09-02 complete (calendar time_color/date_color config-driven via _safe_hex_color)
 
-Progress: [███░░░░░░░] 38%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [███░░░░░░░] 38%
 | Phase 08 P01 | 4 | 2 tasks | 2 files |
 | Phase 08 P02 | 3 | 2 tasks | 5 files |
 | Phase 09 P01 | 2min | 2 tasks | 3 files |
+| Phase 09 P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,7 @@ Progress: [███░░░░░░░] 38%
 - [Phase 09-01]: ConfigLoader constructed without after_reload; _after_reload assigned post-construction to avoid forward reference — config_loader must be bound before lambda can close over it
 - [Phase 09-01]: reapply_clip() called first in _after_reload to preserve HOST-04 behavior before bg_color update
 - [Phase 09-01]: window.set_bg_color() called between load() and apply_config() on initial startup — bg renders before widgets are composited
+- [Phase 09-02]: _safe_hex_color except clause must include TypeError — PIL.ImageColor.getrgb() raises TypeError on None input (calls len() on arg), not AttributeError
 
 ### Pending Todos
 
@@ -99,6 +101,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27T21:58:47Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-03-27T22:05:17.132Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None

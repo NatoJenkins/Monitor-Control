@@ -36,7 +36,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 **Milestone Goal:** Replace all hardcoded colors with a user-configurable color system. A reusable ColorPickerWidget drives three integration points in the control panel. Background color ownership moves from widget subprocesses to the host compositor. All defaults match current hardcoded values — zero visual change on upgrade.
 
 - [x] **Phase 8: Core Widget + Background Infrastructure** — Build ColorPickerWidget and atomically migrate host/widget background ownership (completed 2026-03-27)
-- [ ] **Phase 9: Config Schema + Host Hot-Reload Wiring** — Wire bg_color and calendar color keys through config into the live bar
+- [x] **Phase 9: Config Schema + Host Hot-Reload Wiring** — Wire bg_color and calendar color keys through config into the live bar (completed 2026-03-27)
 - [ ] **Phase 10: Control Panel Integration** — Replace Pomodoro hex fields and add Calendar color pickers
 - [ ] **Phase 11: Layout Tab bg_color Picker** — Expose bg_color in the control panel and close the end-to-end user flow
 
@@ -66,7 +66,7 @@ Plans:
   2. A v1.1 config.json with no `bg_color` key loads without error and renders the bar at #1a1a2e
   3. A v1.1 config.json with no `time_color` or `date_color` in the calendar settings block loads without error and renders calendar text at #ffffff and #dcdcdc respectively
   4. Manually setting `time_color` and `date_color` in the calendar settings block and saving causes calendar text colors to update without restarting the widget subprocess
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 09-01-PLAN.md — Wire bg_color through host hot-reload pipeline + update config.json schema
 - [ ] 09-02-PLAN.md — Add _safe_hex_color and config-driven colors to CalendarWidget
@@ -104,7 +104,7 @@ Plans:
 | 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
-| 9. Config Schema + Hot-Reload Wiring | 1/2 | In Progress|  | - |
+| 9. Config Schema + Hot-Reload Wiring | 2/2 | Complete   | 2026-03-27 | - |
 | 10. Control Panel Integration | v1.2 | 0/TBD | Not started | - |
 | 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
 
