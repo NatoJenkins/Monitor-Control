@@ -270,7 +270,7 @@ class ControlPanelWindow(QMainWindow):
             else:
                 disable_autostart()
             self._autostart_label.setVisible(checked)
-        except OSError as e:
+        except (OSError, RuntimeError) as e:
             QMessageBox.critical(
                 self, "Autostart Error",
                 f"Failed to update autostart setting:\n{e}"

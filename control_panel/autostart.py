@@ -1,25 +1,40 @@
 # control_panel/autostart.py
 """Read/write HKCU Run registry key for MonitorControl autostart."""
+import os
 import sys
 import winreg
 from pathlib import Path
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 _VALUE_NAME = "MonitorControl"
+_COMMAND_FILE = Path(os.environ.get("LOCALAPPDATA", "")) / "MonitorControl" / "host_command.txt"
 
 
 def _build_command() -> str:
-    """Build the Run key command value: quoted pythonw.exe + quoted launch_host.pyw."""
+    """Build the Run key command value.
+
+    When running from source: derive from __file__ and write to host_command.txt
+    so the packaged exe can reuse it.
+    When frozen: read the stored command written by the source installation.
+    """
     if getattr(sys, "frozen", False):
-        raise RuntimeError(
-            "Autostart must be configured from the Python source installation — "
-            "the packaged control panel cannot locate launch_host.pyw."
-        )
-    # autostart.py lives at <project_root>/control_panel/autostart.py
+        if not _COMMAND_FILE.exists():
+            raise RuntimeError(
+                "Autostart has not been configured yet.\n\n"
+                "Enable autostart once from the Python source installation:\n"
+                "  pythonw -m control_panel\n\n"
+                "After that, this toggle will work from the packaged exe."
+            )
+        return _COMMAND_FILE.read_text(encoding="utf-8").strip()
+
+    # Running from source — derive the command and persist it for the exe.
     project_root = Path(__file__).resolve().parent.parent
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     launch_script = project_root / "launch_host.pyw"
-    return f'"{pythonw}" "{launch_script}"'
+    command = f'"{pythonw}" "{launch_script}"'
+    _COMMAND_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _COMMAND_FILE.write_text(command, encoding="utf-8")
+    return command
 
 
 def is_autostart_enabled() -> bool:
