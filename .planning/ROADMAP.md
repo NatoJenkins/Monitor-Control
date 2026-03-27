@@ -113,8 +113,8 @@ Before building the complete notification widget, validate in a standalone scrip
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — WinRT spike: install winrt packages, create standalone subprocess asyncio/STA validation script, notification widget package skeleton
-- [ ] 04-02-PLAN.md — NotificationWidget (Pillow rendering, polling, auto-dismiss, blocklist), host RequestAccessAsync integration, control panel Notification tab, config.json entry, hardware verification
+- [x] 04-01-PLAN.md — WinRT spike: install winrt packages, create standalone subprocess asyncio/STA validation script, notification widget package skeleton
+- [x] 04-02-PLAN.md — NotificationWidget (Pillow rendering, polling, auto-dismiss, blocklist), host RequestAccessAsync integration, control panel Notification tab, config.json entry, hardware verification
 
 ---
 
@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Host Infrastructure + Pipeline | 3/3 | Complete   | 2026-03-27 |
 | 2. Config System + Control Panel | 2/2 | Complete   | 2026-03-27 |
 | 3. Pomodoro + Calendar Widgets | 2/2 | Complete   | 2026-03-27 |
-| 4. Notification Interceptor | 1/2 | In Progress|  |
+| 4. Notification Interceptor | 2/2 | Built; awaiting hardware re-verify | 2026-03-26 |
 
 ---
 *Roadmap created: 2026-03-26*

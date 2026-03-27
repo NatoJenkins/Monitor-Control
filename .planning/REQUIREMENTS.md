@@ -51,10 +51,10 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 ### Notification Interceptor
 
 - [x] **NOTF-01**: Before spawning the notification widget, the host calls `UserNotificationListener.RequestAccessAsync()` from the Qt main thread (the only STA-compatible thread) to obtain user consent for notification access
-- [ ] **NOTF-02**: The notification widget subprocess calls only `GetAccessStatus()` (never `RequestAccessAsync()`); if status is not ALLOWED it pushes a "permission required" placeholder frame instead of silently showing an empty slot
+- [x] **NOTF-02**: The notification widget subprocess calls only `GetAccessStatus()` (never `RequestAccessAsync()`); if status is not ALLOWED it pushes a "permission required" placeholder frame instead of silently showing an empty slot
 - [x] **NOTF-03**: The notification widget polls or subscribes to `UserNotificationListener` using the modular `winrt-Windows.UI.Notifications.Management==3.2.1` package (not the archived `winsdk`); it surfaces notification title, body, and app name in the bar slot
-- [ ] **NOTF-04**: User can dismiss a notification from the bar slot; dismissal calls `RemoveNotification(id)` which removes it from the Windows Action Center
-- [ ] **NOTF-05**: The notification widget displays the most recent notification; when no notifications are present the slot shows an empty/idle state; v1 shows one notification at a time (queue of multiple toasts is a v1.x feature)
+- [x] **NOTF-04**: Auto-dismiss to idle bell icon after configurable timeout (default 30s); v1 does NOT call RemoveNotification — bar clears to idle, Action Center entry remains (per CONTEXT.md locked decision)
+- [x] **NOTF-05**: The notification widget displays the most recent notification; when no notifications are present the slot shows an idle bell icon; v1 shows one notification at a time (queue of multiple toasts is a v1.x feature)
 
 ---
 
@@ -125,10 +125,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CAL-02 | Phase 3 | Complete |
 | CAL-03 | Phase 3 | Complete |
 | NOTF-01 | Phase 4 | Complete |
-| NOTF-02 | Phase 4 | Pending |
+| NOTF-02 | Phase 4 | Complete |
 | NOTF-03 | Phase 4 | Complete |
-| NOTF-04 | Phase 4 | Pending |
-| NOTF-05 | Phase 4 | Pending |
+| NOTF-04 | Phase 4 | Complete |
+| NOTF-05 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 28 total

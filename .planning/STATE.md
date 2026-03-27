@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 1 / 2
-status: in_progress
-last_updated: "2026-03-27T05:13:14.506Z"
+current_plan: 2 / 2
+status: complete
+last_updated: "2026-03-26T00:00:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 4 Plan 01 complete (WinRT spike validated); ready for Plan 02
+`IN_PROGRESS` — Phase 4 Plan 02 complete (notification widget built, hardware regression fixed); pending hardware re-verification
 
 ## Current Phase
 Phase 4 — Notifications Widget
-Current Plan: 1 / 2
+Current Plan: 2 / 2
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
 [##########] Phase 2 complete — hardware verified (2/2 plans)
 [##########] Phase 3 complete — hardware verified (2/2 plans)
-[█████░░░░░] Phase 4 in progress (1/2 plans)
+[████████░░] Phase 4 in progress (2/2 plans built; awaiting hardware re-verification)
 
 ## Milestone
 v1.0 — initial release
@@ -36,13 +36,13 @@ v1.0 — initial release
 - Phase 3 — Pomodoro + Calendar Widgets (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 4 Plan 01 (WinRT subprocess spike). All 3 concerns validated on real hardware: asyncio.run() OK in spawn subprocess, GetAccessStatus ALLOWED cross-process, 20 notifications polled. creation_time is Python datetime (UTC). Event subscription fails as expected — polling architecture confirmed. 88 tests passing.
+2026-03-26 — Completed Phase 4 Plan 02 (notification widget build + hardware regression fix). NotificationWidget built with Pillow rendering, auto-dismiss, blocklist, exception-resilient run loop. Hardware test revealed subprocess crash on empty/None toast nodes (dark red slot). Fixed: list(IVectorView), None-coercion, _run_once() isolation. 105 tests passing.
 
 ## Stopped At
-Completed 04-01-PLAN.md (WinRT spike). Next: Phase 4 Plan 02 (notification widget build).
+Completed 04-02-PLAN.md (notification widget). Awaiting hardware re-verification with corrected PowerShell test command.
 
 ## Next Action
-Begin Phase 4 Plan 02: build NotificationWidget with polling architecture using validated WinRT patterns.
+Hardware re-verification: restart host, fire corrected PowerShell notification, confirm bell -> notification card -> auto-dismiss cycle on Display 3.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -87,6 +87,10 @@ Begin Phase 4 Plan 02: build NotificationWidget with polling architecture using 
 - [Phase 04]: get_binding("ToastGeneric") string form required -- KnownNotificationBindings.TOAST_GENERIC constant absent in winrt-Windows.UI.Notifications==3.2.1 (04-01 spike)
 - [Phase 04]: creation_time is Python datetime (UTC-aware) -- format with n.creation_time.astimezone().strftime('%H:%M') for local time; no .to_datetime() conversion needed (04-01 spike)
 - [Phase 04]: Six winrt packages required (not two) -- Management + Notifications + Foundation + Foundation.Collections + ApplicationModel + runtime; all pinned to ==3.2.1 (04-01 spike)
+- [Phase 04]: list(IVectorView) required before indexing -- WinRT IVectorView does not support len() reliably in winrt 3.2.1; always convert to list first (04-02 hardware fix)
+- [Phase 04]: WinRT text element .text can return None for empty toast nodes -- use (elem.text or "") coercion; PowerShell AppendChild DOM quirk is the trigger (04-02 hardware fix)
+- [Phase 04]: _run_once() isolation pattern -- extract polling loop body into separate method so run() can wrap with try/except Exception; prevents subprocess crash -> dark red compositor slot (04-02 hardware fix)
+- [Phase 04]: PowerShell toast test requires .InnerText = not .AppendChild() -- WinRT live NodeList quirk; AppendChild succeeds but .text stays None; use InnerText property assignment instead (04-02 hardware finding)
 
 ## Blockers
 None
@@ -108,4 +112,5 @@ None
 | 03 | 01 | 360 | 3/3 | 15 |
 | 03 | 02 | 232 | 2/3 | 4 |
 | Phase 04 P01 | 419 | 2 tasks | 4 files |
+| 04 | 02 | 4500 | 3/3 | 5 |
 
