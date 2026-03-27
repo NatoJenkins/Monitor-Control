@@ -42,8 +42,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Host window, display targeting, window flags, DPI-correct placement, project skeleton + test infrastructure
-- [ ] 01-02-PLAN.md — ClipCursor enforcement with WTS session notification recovery
-- [ ] 01-03-PLAN.md — ProcessManager, QueueDrainTimer, Compositor, dummy widget end-to-end + hardware verification
+- [x] 01-02-PLAN.md — ClipCursor enforcement with WTS session notification recovery
+- [x] 01-03-PLAN.md — ProcessManager, QueueDrainTimer, Compositor, dummy widget end-to-end + hardware verification
 
 ### Phase 2: Config System + Control Panel
 **Goal**: `config.json` is the single source of truth for layout and widget settings; the host watches it reliably across atomic saves; the control panel is the only configuration surface
@@ -125,11 +125,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Host Infrastructure + Pipeline | 3/3 | Complete   | 2026-03-26 |
+| 1. Host Infrastructure + Pipeline | 3/3 | Complete   | 2026-03-27 |
 | 2. Config System + Control Panel | 0/2 | Not started | - |
 | 3. Pomodoro + Calendar Widgets | 0/2 | Not started | - |
 | 4. Notification Interceptor | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-26 after Phase 1 Plan 01 execution*
+*Last updated: 2026-03-26 after Phase 1 complete (all 3 plans hardware-verified)*

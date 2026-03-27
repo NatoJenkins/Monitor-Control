@@ -21,6 +21,7 @@ provides:
   - QueueDrainTimer: 50ms QTimer drain via get_nowait(), update() once per cycle
   - Full pipeline wired in host/main.py and host/window.py
   - Unit and integration test coverage for all IPC components
+  - Hardware-verified on real Display 3 (1920x515 HDMI strip)
 affects: [02-config-panel, 03-pomodoro-calendar, 04-notifications]
 
 # Tech tracking
@@ -33,6 +34,7 @@ tech-stack:
     - "Compositor paintEvent delegation: HostWindow.paintEvent → Compositor.paint(painter)"
     - "Kill fallback: proc.kill() after 5s join timeout if process does not terminate"
     - "Crash detection: mark_crashed on dead process, rendered as dark red slot fill"
+    - "Window placement: setGeometry(screen.geometry()) + show() instead of showFullScreen() for non-primary monitor targeting"
 
 key-files:
   created:
@@ -49,6 +51,7 @@ key-files:
     - tests/test_e2e_dummy.py
   modified:
     - host/window.py
+    - host/win32_utils.py
     - host/main.py
 
 key-decisions:
@@ -56,30 +59,32 @@ key-decisions:
   - "Compositor stored as window.compositor attribute (not separate import) so HostWindow owns the lifecycle and paintEvent can call it directly"
   - "ProcessManager drain loop uses deadline-based while loop (not just one get_nowait) to handle bursts of queued frames before join"
   - "DummyWidget uses block=False with silent queue.Full drop — backpressure handled by dropping frames, not stalling the subprocess"
+  - "place_on_screen uses setGeometry(screen.geometry()) + show() instead of showFullScreen() — showFullScreen calls MonitorFromWindow which re-routes to Monitor 2 instead of the HDMI strip"
 
 patterns-established:
   - "Pattern: Widget subprocess entry point is a standalone function (run_dummy_widget), not a method call — compatible with multiprocessing.Process target="
   - "Pattern: WidgetBase has no Qt/win32 imports — subprocess isolation boundary enforced at class level"
   - "Pattern: Compositor.set_slots({widget_id: QRect}) called at startup before first frame arrives — no lazy slot creation"
+  - "Pattern: Place window on non-primary monitor with setGeometry+show, never showFullScreen"
 
 requirements-completed: [HOST-03, IPC-01, IPC-02, IPC-03, IPC-04]
 
 # Metrics
-duration: 4min
+duration: 30min
 completed: 2026-03-26
 ---
 
 # Phase 1 Plan 03: IPC Pipeline — Compositor, ProcessManager, QueueDrainTimer, DummyWidget Summary
 
-**Full IPC pipeline from subprocess to screen: multiprocessing.Queue push at 20 Hz through drain timer to QPainter compositor rendering a teal rectangle on Display 3**
+**Full IPC pipeline from subprocess to screen hardware-verified: multiprocessing.Queue push at 20 Hz through drain timer to QPainter compositor rendering a teal rectangle on Display 3 (1920x515 HDMI strip)**
 
 ## Performance
 
-- **Duration:** ~4 min
+- **Duration:** ~30 min (including hardware verification)
 - **Started:** 2026-03-26T23:24:40Z
-- **Completed:** 2026-03-26T23:28:26Z
-- **Tasks:** 2 of 3 (Task 3 is hardware verification checkpoint — awaiting user)
-- **Files modified:** 13
+- **Completed:** 2026-03-26T23:54:00Z
+- **Tasks:** 3 of 3 (all complete including hardware verification)
+- **Files modified:** 14
 
 ## Accomplishments
 - Complete IPC pipeline: DummyWidget subprocess pushes FrameData via multiprocessing.Queue at 20 Hz
@@ -89,6 +94,7 @@ completed: 2026-03-26
 - HostWindow.paintEvent now delegates entirely to Compositor.paint(painter)
 - host/main.py fully wired: ProcessManager + QueueDrainTimer started, aboutToQuit.connect(cleanup) for clean shutdown
 - All 18 non-integration tests pass (8 new IPC tests + 10 from prior plans)
+- Hardware verification passed: all 5 success criteria confirmed on real Display 3
 
 ## Task Commits
 
@@ -96,8 +102,9 @@ Each task was committed atomically:
 
 1. **Task 1: WidgetBase, DummyWidget, ProcessManager, Compositor, QueueDrainTimer, and test scaffolds** - `8584eff` (feat)
 2. **Task 2: Wire ProcessManager, Compositor, QueueDrainTimer into host/window.py and host/main.py** - `055a885` (feat)
+3. **Task 3: Hardware verification — showFullScreen bug fixed, all 5 SC confirmed** - `547ef4a` (fix)
 
-**Plan metadata:** (added after hardware verification — Task 3 checkpoint)
+**Plan metadata:** `96409eb` (docs: complete IPC pipeline plan — awaiting hardware verification checkpoint)
 
 ## Files Created/Modified
 
@@ -108,6 +115,7 @@ Each task was committed atomically:
 - `host/process_manager.py` - ProcessManager: spawn/stop/monitor with drain-before-join + kill fallback
 - `host/queue_drain.py` - QueueDrainTimer: 50ms QTimer, get_nowait() drain, single schedule_repaint per cycle
 - `host/window.py` - Updated: Compositor integrated, paintEvent delegates to compositor.paint()
+- `host/win32_utils.py` - Updated: place_on_screen uses setGeometry+show instead of showFullScreen
 - `host/main.py` - Updated: ProcessManager + QueueDrainTimer wired, aboutToQuit.connect(cleanup)
 - `tests/test_compositor.py` - Tests: blit renders frame, placeholder fill, crash fill
 - `tests/test_process_manager.py` - Integration tests: start creates process, stop drains queue, kill fallback
@@ -121,14 +129,40 @@ Each task was committed atomically:
 - **Compositor stored as window.compositor** — HostWindow owns the lifecycle; paintEvent calls it directly without a separate reference chain.
 - **ProcessManager deadline drain** — uses a deadline-based while loop (2s budget) rather than a single get_nowait to drain any burst of queued frames before calling join.
 - **DummyWidget silent drop on queue.Full** — backpressure absorbed by frame dropping, not subprocess stalling. The host drain rate (50ms) matches the widget push rate (50ms); Full conditions are transient.
+- **place_on_screen uses setGeometry+show, not showFullScreen** — showFullScreen calls MonitorFromWindow internally which routes the window to Monitor 2 (the current active monitor) rather than the intended HDMI strip. setGeometry(screen.geometry()) + show() targets the screen directly.
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] place_on_screen used showFullScreen which misrouted window to Monitor 2**
+- **Found during:** Task 3 (hardware verification — SC-1 window placement check)
+- **Issue:** `showFullScreen()` calls Win32 `MonitorFromWindow` internally, which picks the monitor containing the window's current position rather than the intended QScreen. On a 3-monitor layout with Display 3 being an HDMI strip below the primary monitors, the window was placed on Monitor 2 instead.
+- **Fix:** Replaced `window.showFullScreen()` in `place_on_screen` with `window.setGeometry(screen.geometry()); window.show()` — this directly assigns the Qt geometry from the target QScreen before showing.
+- **Files modified:** `host/win32_utils.py`
+- **Verification:** SC-1 confirmed on hardware — window appeared on Display 3 (HDMI strip), borderless, no taskbar entry, stays on top.
+- **Committed in:** `547ef4a` (fix(01-03): use setGeometry+show instead of showFullScreen for HDMI strip placement)
+
+---
+
+**Total deviations:** 1 auto-fixed (Rule 1 - Bug)
+**Impact on plan:** Critical fix — without it, the window appeared on the wrong monitor. No scope creep; the fix is a one-line change in place_on_screen.
+
+## Hardware Verification Results
+
+All 5 Phase 1 success criteria confirmed on real hardware (3-monitor layout, Display 3 at 1920x515):
+
+| SC | Requirement | Result |
+|----|-------------|--------|
+| SC-1 | Window on Display 3, borderless, no taskbar, stays on top | PASS |
+| SC-2 | Solid teal rectangle fills 1920x515 slot, no flicker | PASS |
+| SC-3 | Cursor blocked at Display 3 boundary; survives Win+L/unlock | PASS |
+| SC-4 | Killing dummy widget subprocess turns slot dark red within ~50ms; host kept running | PASS |
+| SC-5 | Exactly 2 Python processes (host + dummy widget) | PASS |
 
 ## Issues Encountered
 
-None.
+None beyond the showFullScreen bug documented in Deviations.
 
 ## User Setup Required
 
@@ -136,15 +170,14 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-Hardware verification (Task 3) is a blocking checkpoint. The user must run `python -m host.main` and verify:
-1. Display 3 shows a fullscreen window with no taskbar entry
-2. Solid teal (0,128,128) rectangle fills the dummy widget slot — no flicker
-3. Cursor cannot enter Display 3; survives Win+L/unlock
-4. Killing the dummy widget subprocess turns its slot dark red within ~50ms
-5. Exactly 2 Python processes (host + dummy widget), no cascade
+Phase 1 is complete. All requirements verified on real hardware:
+- HOST-01 through HOST-05: window placement, taskbar suppression, compositor rendering, cursor lockout, no process cascade
+- IPC-01 through IPC-04: non-blocking queue push, 50ms drain timer, drain-before-join, end-to-end pipeline proven
 
-After hardware verification passes, Phase 1 is complete and Phase 2 (config panel) can begin.
+Phase 2 (Config System + Control Panel) can begin. The IPC pipeline is the foundation all future widgets depend on.
 
 ---
 *Phase: 01-host-infrastructure-pipeline*
 *Completed: 2026-03-26*
+
+## Self-Check: PASSED

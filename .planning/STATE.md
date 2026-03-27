@@ -1,29 +1,29 @@
 # Project State
 
 ## Status
-`CHECKPOINT` — Phase 1 Plan 03 awaiting hardware verification (Task 3)
+`COMPLETE` — Phase 1 complete; all hardware verification passed; ready for Phase 2
 
 ## Current Phase
-Phase 1 — Host Infrastructure + IPC Pipeline
-Current Plan: 3 / 3
+Phase 2 — Config System + Control Panel
+Current Plan: 0 / 2
 
 ## Progress
-[##########] 3/3 plans complete in Phase 1 (awaiting hardware verify)
+[##########] Phase 1 complete (3/3 plans)
 
 ## Milestone
 v1.0 — initial release
 
 ## Completed Phases
-(none)
+- Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 1 Plan 03 (Tasks 1-2): Full IPC pipeline — ProcessManager, QueueDrainTimer, Compositor, DummyWidget wired into host/main.py. Awaiting hardware verification.
+2026-03-26 — Completed Phase 1 Plan 03 (all 3 tasks): Full IPC pipeline hardware-verified. showFullScreen bug fixed (setGeometry+show). All 5 SC passed. Phase 1 complete.
 
 ## Stopped At
-Checkpoint: 01-03 Task 3 — hardware verification of complete Phase 1 pipeline
+Phase 2 — ready to begin 02-01-PLAN.md (config.json schema, ConfigLoader, QFileSystemWatcher)
 
 ## Next Action
-User runs `python -m host.main` and verifies 5 success criteria. On approval, Phase 1 complete; begin Phase 2.
+Begin Phase 2: config.json schema, ConfigLoader with hot-reload, QFileSystemWatcher with re-add and debounce.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -47,6 +47,7 @@ User runs `python -m host.main` and verifies 5 success criteria. On approval, Ph
 9. **Compositor owned by HostWindow** — Stored as window.compositor; paintEvent delegates directly. ProcessManager and drain timer stored as window._pm / window._drain_timer to prevent GC. (01-03)
 10. **ProcessManager deadline drain** — Drain loop uses 2s deadline budget before join, not single get_nowait, to flush burst frames and prevent feeder thread deadlock. (01-03)
 11. **DummyWidget silent drop on queue.Full** — Backpressure handled by frame dropping (not stalling subprocess); host drain rate matches push rate at 50ms. (01-03)
+12. **place_on_screen: setGeometry+show instead of showFullScreen** — showFullScreen() calls MonitorFromWindow internally which selects the active monitor, not the intended target. On the HDMI strip (Display 3), this caused the window to appear on Monitor 2. Fix: setGeometry(screen.geometry()) + show() assigns Qt geometry from the target QScreen directly. (01-03 bug fix, commit 547ef4a)
 
 ## Blockers
 None
@@ -62,4 +63,4 @@ None
 |-------|------|-------------|-------|-------|
 | 01 | 01 | 248 | 2/2 | 15 |
 | 01 | 02 | 124 | 2/2 | 3 |
-| 01 | 03 | 226 | 2/3 | 13 |
+| 01 | 03 | 1800 | 3/3 | 14 |
