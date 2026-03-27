@@ -80,7 +80,9 @@ Plans:
   2. Adjusting a Pomodoro color picker and clicking Save causes the Pomodoro widget to update its accent color live without a host restart
   3. Opening the Calendar tab shows two ColorPickerWidget instances for time color and date color; each is pre-populated with the current value from config
   4. Adjusting a Calendar color picker and clicking Save causes the calendar text to update live without a host restart
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 10-01-PLAN.md — Replace Pomodoro QLineEdit fields with ColorPickerWidgets and add Calendar color pickers (TDD)
 
 ### Phase 11: Layout Tab bg_color Picker
 **Goal**: The Layout tab exposes a ColorPickerWidget for the bar background color, closing the full user-facing color configuration flow end-to-end
@@ -104,10 +106,10 @@ Plans:
 | 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
-| 9. Config Schema + Hot-Reload Wiring | 2/2 | Complete   | 2026-03-27 | - |
-| 10. Control Panel Integration | v1.2 | 0/TBD | Not started | - |
+| 9. Config Schema + Hot-Reload Wiring | v1.2 | 2/2 | Complete | 2026-03-27 |
+| 10. Control Panel Integration | v1.2 | 0/1 | Not started | - |
 | 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 — Phase 9 plans created (2 plans, 1 wave)*
+*Last updated: 2026-03-27 — Phase 10 plans created (1 plan, 1 wave)*
