@@ -66,7 +66,10 @@ Plans:
   2. A v1.1 config.json with no `bg_color` key loads without error and renders the bar at #1a1a2e
   3. A v1.1 config.json with no `time_color` or `date_color` in the calendar settings block loads without error and renders calendar text at #ffffff and #dcdcdc respectively
   4. Manually setting `time_color` and `date_color` in the calendar settings block and saving causes calendar text colors to update without restarting the widget subprocess
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 09-01-PLAN.md — Wire bg_color through host hot-reload pipeline + update config.json schema
+- [ ] 09-02-PLAN.md — Add _safe_hex_color and config-driven colors to CalendarWidget
 
 ### Phase 10: Control Panel Integration
 **Goal**: Pomodoro and Calendar tabs in the control panel expose color pickers — the three existing hex QLineEdit fields in Pomodoro are replaced, and Calendar gains two new pickers — with all changes persisting to config.json on Save
@@ -100,11 +103,11 @@ Plans:
 | 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
-| 8. Core Widget + Background Infrastructure | 2/2 | Complete   | 2026-03-27 | - |
-| 9. Config Schema + Hot-Reload Wiring | v1.2 | 0/TBD | Not started | - |
+| 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
+| 9. Config Schema + Hot-Reload Wiring | v1.2 | 0/2 | Planned | - |
 | 10. Control Panel Integration | v1.2 | 0/TBD | Not started | - |
 | 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 — Phase 8 plans created (2 plans, 2 waves)*
+*Last updated: 2026-03-27 — Phase 9 plans created (2 plans, 1 wave)*
