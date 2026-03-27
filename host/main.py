@@ -1,7 +1,6 @@
 import sys
 import multiprocessing
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QRect
 from host.window import HostWindow
 from host.win32_utils import (
     find_target_screen, place_on_screen,
@@ -11,6 +10,7 @@ from host.win32_utils import (
 )
 from host.process_manager import ProcessManager
 from host.queue_drain import QueueDrainTimer
+from host.config_loader import ConfigLoader, register_widget_type
 from widgets.dummy.widget import run_dummy_widget
 
 
@@ -46,20 +46,13 @@ def main():
     # Prevent garbage collection of the filter during app lifetime
     window._msg_filter = msg_filter
 
-    # --- IPC Pipeline (IPC-01 through IPC-04) ---
-    # Configure compositor slots
-    # For Phase 1: single dummy widget slot taking full display width
-    window.compositor.set_slots({
-        "dummy": QRect(0, 0, 1920, 515),
-    })
+    # --- Config-driven widget startup (CFG-01, CFG-02, CFG-03) ---
+    register_widget_type("dummy", run_dummy_widget)
 
-    # Start ProcessManager and dummy widget
     pm = ProcessManager()
-    pm.start_widget(
-        widget_id="dummy",
-        target_fn=run_dummy_widget,
-        config={"width": 1920, "height": 515},
-    )
+    config_loader = ConfigLoader("config.json", pm, window.compositor)
+    config = config_loader.load()
+    config_loader.apply_config(config)
 
     # Start drain timer — polls all queues at 50ms, updates compositor
     drain_timer = QueueDrainTimer(pm, window.compositor, interval_ms=50)
@@ -68,6 +61,7 @@ def main():
     # Keep references alive
     window._pm = pm
     window._drain_timer = drain_timer
+    window._config_loader = config_loader
 
     # Clean shutdown
     def cleanup():
