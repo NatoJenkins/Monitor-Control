@@ -23,6 +23,7 @@ class Compositor:
         self._slots.pop(widget_id, None)
         self._frames.pop(widget_id, None)
         self._crashed.discard(widget_id)
+        self.schedule_repaint()
 
     def update_frame(self, widget_id: str, frame: FrameData) -> None:
         self._frames[widget_id] = frame
