@@ -90,6 +90,17 @@ def main():
     # Prevent garbage collection of the filter during app lifetime
     window._msg_filter = msg_filter
 
+    # --- Polling safety net (HOST-04b) ---
+    # Windows clears ClipCursor in many scenarios (Start menu, Alt-Tab, virtual
+    # desktop switch, interacting with another monitor) and often does so AFTER
+    # our message-handler re-applies the clip. A 100ms polling timer guarantees
+    # the clip is restored within one tick regardless of the trigger.
+    _clip_poll_timer = QTimer()
+    _clip_poll_timer.setInterval(100)
+    _clip_poll_timer.timeout.connect(reapply_clip)
+    _clip_poll_timer.start()
+    window._clip_poll_timer = _clip_poll_timer  # prevent GC
+
     # --- Notification access permission (NOTF-01) ---
     # RequestAccessAsync MUST run from the Qt main thread (STA apartment).
     # This blocks until the user grants/denies permission. Safe to block here

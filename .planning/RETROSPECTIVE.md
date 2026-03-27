@@ -108,11 +108,18 @@
 - **Commit:** `2dde26b`
 - **Note:** The brief flicker to Monitor 1 is expected — Windows moves the window before the debounce fires. The 1.5s delay ensures the display layout has stabilized before repositioning.
 
+**Bug 4: Cursor escapes to Display 3 on focus-change events**
+- **Symptom:** Cursor could freely move onto Display 3 (the excluded monitor) after: pressing the Windows key, Alt-Tab, interacting with another monitor, or Ctrl+Win+Arrow virtual desktop switch. Clicking on Display 3 itself would re-enforce the lock (cursor snapped back), but the cursor remained free until then.
+- **Root cause:** The message-based ClipCursor re-application (WM_ACTIVATE, WM_ACTIVATEAPP) fires during our deactivation handler, but Windows clears ClipCursor *after* the message returns — when the newly-focused window/shell processes its activation. The re-apply is immediately overridden. Virtual desktop switches and cross-monitor interactions don't reliably send these messages at all.
+- **Fix:** Added a 100ms polling QTimer that continuously re-applies ClipCursor as a safety net. ClipCursor is a single Win32 syscall with negligible overhead, and it auto-snaps the cursor back into the allowed region if it has already escaped. The existing message-based handlers are retained for immediate response when timing works out.
+- **Commit:** (this commit)
+
 ### Key Lessons (Post-Ship)
 
 4. **Never trust the HKCU Run key on Windows 11 for autostart.** Use `shell:startup` shortcut instead. The registry approach has known reliability issues that are extremely difficult to diagnose — the registry looks correct but Windows silently refuses to execute.
 5. **Any UI toggle that modifies system state must show errors, never silently succeed.** The RuntimeError was swallowed because only `OSError` was caught. Every code path that changes registry/filesystem state should catch `Exception` and surface failures to the user.
 6. **`WM_DISPLAYCHANGE` must trigger full display re-discovery, not just ClipCursor reapplication.** Any host with display-dependent geometry needs to re-find its target screen and reposition after display topology changes.
+7. **Message-based ClipCursor re-application is insufficient — use a polling timer as a safety net.** Windows clears ClipCursor after our deactivation message returns, overriding the re-apply. A 100ms polling timer guarantees restoration regardless of the trigger (Start menu, Alt-Tab, virtual desktop switch, cross-monitor interaction).
 
 ### Cost Observations
 
@@ -136,4 +143,4 @@
 | Milestone | Phases hardware-verified | Hardware bugs caught |
 |-----------|--------------------------|----------------------|
 | v1.0      | 4/4                      | 3 (showFullScreen wrong monitor, WM_ACTIVATEAPP ClipCursor gap, WinRT IVectorView/None crash) |
-| v1.1      | 1/3 (Phase 7 only)       | 4 (config path mismatch, silent autostart failure, Win11 Run key ignored, display reposition on power-cycle) |
+| v1.1      | 1/3 (Phase 7 only)       | 5 (config path mismatch, silent autostart failure, Win11 Run key ignored, display reposition on power-cycle, ClipCursor escape on focus change) |
