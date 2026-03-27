@@ -3,28 +3,28 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_plan: 2 / 2 (COMPLETE)
-status: unknown
-last_updated: "2026-03-27T03:38:30.534Z"
+status: IN_PROGRESS
+last_updated: "2026-03-27T03:44:11Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 3 Plan 01 complete; Phase 3 Plan 02 next
+`IN_PROGRESS` — Phase 3 Plan 02 complete (Tasks 1-2); hardware verification checkpoint pending
 
 ## Current Phase
 Phase 3 — Pomodoro + Calendar Widgets
-Current Plan: 1 / 2 (COMPLETE)
+Current Plan: 2 / 2 (COMPLETE — pending hardware verify)
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
 [##########] Phase 2 complete — hardware verified (2/2 plans)
-[█████░░░░░] Phase 3 in progress (1/2 plans complete)
+[██████████] Phase 3 tasks complete (2/2 plans, hardware verify pending)
 
 ## Milestone
 v1.0 — initial release
@@ -34,13 +34,13 @@ v1.0 — initial release
 - Phase 2 — Config System + Control Panel (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 3 Plan 01: PomodoroWidget (IDLE/WORK/SHORT_BREAK/LONG_BREAK state machine, monotonic countdown, Pillow rendering) and CalendarWidget (12h/24h format, day-of-week date, 1Hz push) both implemented. ControlSignal added to IPC schema. config.json replaced dummy with pomodoro+calendar. 70 unit tests passing. Fonts bundled (Inter, ShareTechMono; Digital-7 unavailable, using fallback).
+2026-03-27 — Completed Phase 3 Plan 02 (Tasks 1-2): Pomodoro command-file IPC wired end-to-end (write_pomodoro_command -> directoryChanged watcher -> send_control_signal). Control panel extended with Start/Pause/Reset buttons, font selectors, accent color editors, Shortcuts tab, QShortcut bindings. 86 tests passing (1 pre-existing flaky e2e test excluded).
 
 ## Stopped At
-Phase 3 — 03-01-PLAN.md fully complete (unit tests verified, hardware verification pending)
+Phase 3 — 03-02-PLAN.md Tasks 1-2 complete; Task 3 (hardware verification checkpoint) requires user action on Display 3.
 
 ## Next Action
-Execute Phase 3 Plan 02 — hardware verification of Pomodoro + Calendar widgets on Display 3.
+Hardware verification: run `python -m host.main` and `python -m control_panel.main`, verify both widgets on Display 3, test Start/Pause/Reset IPC, confirm config changes propagate.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -77,6 +77,9 @@ Execute Phase 3 Plan 02 — hardware verification of Pomodoro + Calendar widgets
 - [Phase 03]: Config duration updates deferred to _apply_pending_durations() at _transition_to() — current countdown unaffected by mid-session config changes. (03-01)
 - [Phase 03]: CalendarWidget uses WidgetBase.poll_config_update() not custom _poll_in_queue() — no ControlSignal needed for clock widget. (03-01)
 - [Phase 03]: Digital-7.ttf not bundled — unavailable on public GitHub; both widgets fall back to ImageFont.load_default() without crash. (03-01)
+- [Phase 03]: Watch config directory with directoryChanged (not file with fileChanged) — QFileSystemWatcher.addPath() returns False for non-existent paths; directory watching catches first pomodoro_command.json creation. (03-02)
+- [Phase 03]: window._cmd_watcher = cmd_watcher stored at window level for GC prevention — same pattern as Win32MessageFilter. (03-02)
+- [Phase 03]: write_pomodoro_command uses tempfile.mkstemp(dir=same_dir) for same-filesystem atomic rename guarantee on Windows. (03-02)
 
 ## Blockers
 None
@@ -96,4 +99,5 @@ None
 | 02 | 01 | 331 | 2/2 | 10 |
 | 02 | 02 | 1800 | 2/2 | 8 |
 | 03 | 01 | 360 | 3/3 | 15 |
+| 03 | 02 | 232 | 2/3 | 4 |
 

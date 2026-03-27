@@ -39,7 +39,7 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [x] **POMO-01**: Pomodoro widget runs as an isolated subprocess implementing `WidgetBase`; it renders to RGBA bytes via Pillow and pushes `FrameData` to the host queue
 - [x] **POMO-02**: Pomodoro implements a full state machine: IDLE → WORK → SHORT_BREAK → LONG_BREAK → WORK, with auto-advance at countdown zero and cycle counting for long-break promotion
 - [x] **POMO-03**: Pomodoro displays the current phase label (Focus / Short Break / Long Break) and a MM:SS countdown, updated every second
-- [ ] **POMO-04**: Pomodoro responds to control signals (start, pause, reset) sent from the host/control panel via a second inbound queue
+- [x] **POMO-04**: Pomodoro responds to control signals (start, pause, reset) sent from the host/control panel via a second inbound queue
 - [x] **POMO-05**: Work duration, short break duration, long break duration, and cycles-before-long-break are all configurable via `config.json` and applied on CONFIG_UPDATE without restarting the widget process
 
 ### Calendar Widget
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | POMO-01 | Phase 3 | Complete |
 | POMO-02 | Phase 3 | Complete |
 | POMO-03 | Phase 3 | Complete |
-| POMO-04 | Phase 3 | Pending |
+| POMO-04 | Phase 3 | Complete |
 | POMO-05 | Phase 3 | Complete |
 | CAL-01 | Phase 3 | Complete |
 | CAL-02 | Phase 3 | Complete |
