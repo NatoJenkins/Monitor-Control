@@ -12,9 +12,10 @@ def test_dummy_frame_received():
     widget_id = "dummy"
     config = {"width": 200, "height": 515}
 
+    in_q = multiprocessing.Queue(maxsize=5)
     proc = multiprocessing.Process(
         target=run_dummy_widget,
-        args=(widget_id, config, q),
+        args=(widget_id, config, q, in_q),
         daemon=True,
     )
     proc.start()

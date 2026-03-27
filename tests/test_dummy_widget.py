@@ -51,10 +51,12 @@ def test_dummy_pushes_framedata():
     from widgets.dummy.widget import DummyWidget
 
     q = queue.Queue(maxsize=100)
+    in_q = queue.Queue()
     widget = DummyWidget(
         widget_id="test",
         config={"width": 100, "height": 100},
         out_queue=q,
+        in_queue=in_q,
     )
 
     stop_event = threading.Event()

@@ -6,13 +6,13 @@ import pytest
 from host.process_manager import ProcessManager
 
 
-def _simple_worker(widget_id: str, config: dict, out_queue) -> None:
+def _simple_worker(widget_id: str, config: dict, out_queue, in_queue) -> None:
     """Simple worker that just sleeps indefinitely."""
     while True:
         time.sleep(0.1)
 
 
-def _queue_producer(widget_id: str, config: dict, out_queue) -> None:
+def _queue_producer(widget_id: str, config: dict, out_queue, in_queue) -> None:
     """Worker that pushes items to the queue continuously."""
     count = 0
     while True:
@@ -24,7 +24,7 @@ def _queue_producer(widget_id: str, config: dict, out_queue) -> None:
         time.sleep(0.01)
 
 
-def _sigterm_ignoring_worker(widget_id: str, config: dict, out_queue) -> None:
+def _sigterm_ignoring_worker(widget_id: str, config: dict, out_queue, in_queue) -> None:
     """Worker that catches SIGTERM and keeps running (forces kill fallback)."""
     import ctypes
     # On Windows, SIGTERM via proc.terminate() sends WM_CLOSE / TerminateProcess internally.

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any
 import time
 
 
@@ -9,3 +10,10 @@ class FrameData:
     height: int
     rgba_bytes: bytes  # raw RGBA32, width*height*4 bytes
     timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class ConfigUpdateMessage:
+    """Sent host -> widget via in_queue to deliver updated settings."""
+    widget_id: str
+    config: dict[str, Any]

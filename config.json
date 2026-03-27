@@ -1,0 +1,16 @@
+{
+  "layout": {
+    "display": {"width": 1920, "height": 515}
+  },
+  "widgets": [
+    {
+      "id": "dummy",
+      "type": "dummy",
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 515,
+      "settings": {}
+    }
+  ]
+}

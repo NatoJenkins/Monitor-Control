@@ -24,7 +24,7 @@ class DummyWidget(WidgetBase):
             time.sleep(0.05)  # push at ~20 Hz
 
 
-def run_dummy_widget(widget_id: str, config: dict, out_queue) -> None:
+def run_dummy_widget(widget_id: str, config: dict, out_queue, in_queue) -> None:
     """Subprocess entry point. Called by ProcessManager."""
-    widget = DummyWidget(widget_id, config, out_queue)
+    widget = DummyWidget(widget_id, config, out_queue, in_queue)
     widget.run()

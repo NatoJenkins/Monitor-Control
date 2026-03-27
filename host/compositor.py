@@ -14,6 +14,16 @@ class Compositor:
         """Configure widget slot positions. slots = {widget_id: QRect(x,y,w,h)}"""
         self._slots = slots
 
+    def add_slot(self, widget_id: str, slot_rect: QRect) -> None:
+        """Add or update a single widget slot."""
+        self._slots[widget_id] = slot_rect
+
+    def remove_slot(self, widget_id: str) -> None:
+        """Remove a widget slot and its cached frame/crash state."""
+        self._slots.pop(widget_id, None)
+        self._frames.pop(widget_id, None)
+        self._crashed.discard(widget_id)
+
     def update_frame(self, widget_id: str, frame: FrameData) -> None:
         self._frames[widget_id] = frame
         self._crashed.discard(widget_id)
