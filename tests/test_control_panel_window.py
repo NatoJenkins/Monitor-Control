@@ -64,7 +64,7 @@ def test_window_title(qapp, tmp_path):
 
 
 def test_tabs_present(qapp, tmp_path):
-    """QTabWidget has 4 tabs: Layout, Pomodoro, Calendar, Shortcuts."""
+    """QTabWidget has 5 tabs: Layout, Pomodoro, Calendar, Notification, Shortcuts."""
     from control_panel.main_window import ControlPanelWindow
 
     config_path = _write_minimal_config(tmp_path)
@@ -72,11 +72,12 @@ def test_tabs_present(qapp, tmp_path):
 
     tabs = window._tabs
     assert isinstance(tabs, QTabWidget)
-    assert tabs.count() == 4
+    assert tabs.count() == 5
     assert tabs.tabText(0) == "Layout"
     assert tabs.tabText(1) == "Pomodoro"
     assert tabs.tabText(2) == "Calendar"
-    assert tabs.tabText(3) == "Shortcuts"
+    assert tabs.tabText(3) == "Notification"
+    assert tabs.tabText(4) == "Shortcuts"
     window.close()
 
 

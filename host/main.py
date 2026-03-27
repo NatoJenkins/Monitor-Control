@@ -16,6 +16,7 @@ from host.queue_drain import QueueDrainTimer
 from host.config_loader import ConfigLoader, register_widget_type
 from widgets.pomodoro.widget import run_pomodoro_widget
 from widgets.calendar.widget import run_calendar_widget
+from widgets.notification.widget import run_notification_widget
 
 
 def main():
@@ -50,9 +51,37 @@ def main():
     # Prevent garbage collection of the filter during app lifetime
     window._msg_filter = msg_filter
 
+    # --- Notification access permission (NOTF-01) ---
+    # RequestAccessAsync MUST run from the Qt main thread (STA apartment).
+    # This blocks until the user grants/denies permission. Safe to block here
+    # because the Qt event loop has not started yet (before app.exec()).
+    import asyncio as _asyncio
+
+    async def _request_notification_access():
+        from winrt.windows.ui.notifications.management import (
+            UserNotificationListener,
+            UserNotificationListenerAccessStatus,
+        )
+        listener = UserNotificationListener.current
+        status = await listener.request_access_async()
+        return status
+
+    try:
+        _notif_status = _asyncio.run(_request_notification_access())
+        from winrt.windows.ui.notifications.management import UserNotificationListenerAccessStatus
+        if _notif_status == UserNotificationListenerAccessStatus.ALLOWED:
+            print("[Host] Notification access granted", flush=True)
+        elif _notif_status == UserNotificationListenerAccessStatus.DENIED:
+            print("[Host] Notification access denied — widget will show placeholder", flush=True)
+        else:
+            print("[Host] Notification access unspecified — will prompt again next run", flush=True)
+    except Exception as _notif_err:
+        print(f"[Host] Notification access request failed: {_notif_err}", flush=True)
+
     # --- Config-driven widget startup (CFG-01, CFG-02, CFG-03) ---
     register_widget_type("pomodoro", run_pomodoro_widget)
     register_widget_type("calendar", run_calendar_widget)
+    register_widget_type("notification", run_notification_widget)
 
     pm = ProcessManager()
     config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)

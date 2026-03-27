@@ -8,7 +8,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QGroupBox, QSpinBox, QComboBox, QPushButton,
-    QLabel, QMessageBox, QLineEdit,
+    QLabel, QMessageBox, QLineEdit, QListWidget,
 )
 from PyQt6.QtGui import QShortcut, QKeySequence
 from control_panel.config_io import load_config, atomic_write_config, write_pomodoro_command
@@ -34,6 +34,7 @@ class ControlPanelWindow(QMainWindow):
         self._tabs.addTab(self._build_layout_tab(), "Layout")
         self._tabs.addTab(self._build_pomodoro_tab(), "Pomodoro")
         self._tabs.addTab(self._build_calendar_tab(), "Calendar")
+        self._tabs.addTab(self._build_notification_tab(), "Notification")
         self._tabs.addTab(self._build_shortcuts_tab(), "Shortcuts")
         root_layout.addWidget(self._tabs)
 
@@ -160,6 +161,63 @@ class ControlPanelWindow(QMainWindow):
         layout.addStretch()
         return container
 
+    def _build_notification_tab(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+
+        # --- Settings groupbox ---
+        settings_group = QGroupBox("Notification Settings")
+        settings_form = QFormLayout(settings_group)
+
+        self._notif_timeout = QSpinBox()
+        self._notif_timeout.setRange(5, 300)
+        self._notif_timeout.setSuffix(" sec")
+        settings_form.addRow("Auto-dismiss timeout:", self._notif_timeout)
+
+        self._notif_font = QComboBox()
+        self._notif_font.addItems(["Inter", "Digital-7", "Share Tech Mono"])
+        settings_form.addRow("Font:", self._notif_font)
+
+        layout.addWidget(settings_group)
+
+        # --- Blocklist groupbox ---
+        block_group = QGroupBox("Blocked Apps")
+        block_layout = QVBoxLayout(block_group)
+
+        self._notif_blocklist = QListWidget()
+        block_layout.addWidget(self._notif_blocklist)
+
+        btn_row = QHBoxLayout()
+        self._notif_add_btn = QPushButton("+")
+        self._notif_add_btn.setFixedWidth(40)
+        self._notif_add_btn.clicked.connect(self._on_blocklist_add)
+        self._notif_remove_btn = QPushButton("-")
+        self._notif_remove_btn.setFixedWidth(40)
+        self._notif_remove_btn.clicked.connect(self._on_blocklist_remove)
+        btn_row.addWidget(self._notif_add_btn)
+        btn_row.addWidget(self._notif_remove_btn)
+        btn_row.addStretch()
+        block_layout.addLayout(btn_row)
+
+        self._notif_app_input = QLineEdit()
+        self._notif_app_input.setPlaceholderText("App name to block (e.g. Microsoft Edge)")
+        block_layout.addWidget(self._notif_app_input)
+
+        layout.addWidget(block_group)
+        layout.addStretch()
+        return container
+
+    def _on_blocklist_add(self) -> None:
+        app_name = self._notif_app_input.text().strip()
+        if app_name:
+            self._notif_blocklist.addItem(app_name)
+            self._notif_app_input.clear()
+
+    def _on_blocklist_remove(self) -> None:
+        current = self._notif_blocklist.currentRow()
+        if current >= 0:
+            self._notif_blocklist.takeItem(current)
+
     def _build_shortcuts_tab(self) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -210,6 +268,14 @@ class ControlPanelWindow(QMainWindow):
         # Calendar font
         self._cal_font.setCurrentText(cal_cfg.get("font", "Inter"))
 
+        # Notification settings
+        notif_cfg = self._find_widget_settings("notification")
+        self._notif_timeout.setValue(notif_cfg.get("auto_dismiss_seconds", 30))
+        self._notif_font.setCurrentText(notif_cfg.get("font", "Inter"))
+        self._notif_blocklist.clear()
+        for app in notif_cfg.get("blocked_apps", []):
+            self._notif_blocklist.addItem(app)
+
         # Shortcuts
         shortcuts = self._config.get("shortcuts", {})
         self._shortcut_start_edit.setText(shortcuts.get("pomodoro_start", "Ctrl+S"))
@@ -250,6 +316,15 @@ class ControlPanelWindow(QMainWindow):
         self._update_widget_settings(config, "calendar", {
             "clock_format": self._clock_format.currentText(),
             "font": self._cal_font.currentText(),
+        })
+
+        # Update notification widget settings
+        blocked = [self._notif_blocklist.item(i).text()
+                   for i in range(self._notif_blocklist.count())]
+        self._update_widget_settings(config, "notification", {
+            "font": self._notif_font.currentText(),
+            "auto_dismiss_seconds": self._notif_timeout.value(),
+            "blocked_apps": blocked,
         })
 
         # Shortcuts

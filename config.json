@@ -19,7 +19,7 @@
         "long_break_minutes": 15,
         "cycles_before_long_break": 4,
         "font": "Inter",
-        "work_accent_color": "#ff4444",
+        "work_accent_color": "#00ff00",
         "short_break_accent_color": "#44ff44",
         "long_break_accent_color": "#4488ff"
       }
@@ -32,8 +32,21 @@
       "width": 640,
       "height": 515,
       "settings": {
-        "clock_format": "24h",
+        "clock_format": "12h",
         "font": "Inter"
+      }
+    },
+    {
+      "id": "notification",
+      "type": "notification",
+      "x": 1280,
+      "y": 0,
+      "width": 640,
+      "height": 515,
+      "settings": {
+        "font": "Inter",
+        "auto_dismiss_seconds": 30,
+        "blocked_apps": []
       }
     }
   ],
