@@ -51,10 +51,10 @@ Plans:
   2. Unchecking the toggle removes the HKCU Run entry; host no longer launches at login
   3. Opening the control panel always reflects the live registry state of the toggle (not cached — re-reads HKCU on every panel open)
   4. The Startup tab displays "MonitorControl will start automatically at next login" when the toggle is checked
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 06-01: TBD
+- [ ] 06-01-PLAN.md — Registry module + launcher script + Startup tab with live HKCU toggle
 
 ### Phase 7: Control Panel Packaging
 **Goal**: The control panel runs as a standalone .exe on any Windows machine with no Python environment required
@@ -81,9 +81,9 @@ Plans:
 | 3. Pomodoro + Calendar Widgets | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 4. Notification Interceptor | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
-| 6. Autostart Toggle | v1.1 | 0/? | Not started | - |
+| 6. Autostart Toggle | v1.1 | 0/1 | Planned | - |
 | 7. Control Panel Packaging | v1.1 | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 after Phase 5 execution complete (1/1 plans)*
+*Last updated: 2026-03-27 after Phase 6 planning (1 plan created)*
