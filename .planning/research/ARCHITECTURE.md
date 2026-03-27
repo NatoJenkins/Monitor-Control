@@ -1,331 +1,189 @@
 # Architecture Research
 
-**Domain:** Python desktop widget bar — autostart and standalone .exe packaging for Windows
+**Domain:** Python desktop widget bar — configurable color system integration
 **Researched:** 2026-03-27
-**Confidence:** HIGH (Task Scheduler and registry approaches), HIGH (PyInstaller one-folder), MEDIUM (PyInstaller winrt hidden imports), HIGH (path resolution patterns)
+**Confidence:** HIGH (all findings derived from direct inspection of existing codebase)
 
 ---
 
 ## Context: What Is Already Built
 
-This document extends the v1.0 architecture research with v1.1-specific integration analysis. The existing system is:
+This document covers v1.2 integration architecture only. The existing system (v1.1) is:
 
-- **Host process** (`host/main.py`): PyQt6 app, spawns widget subprocesses via `multiprocessing.Process`, watches `config.json` via `QFileSystemWatcher`, enforces `ClipCursor()` on Display 3. Entry guard: `multiprocessing.set_start_method("spawn")` + `if __name__ == "__main__"`.
-- **Control panel process** (`control_panel/__main__.py`): Separate PyQt6 `QMainWindow`, sole writer of `config.json`. Launched independently.
-- **Config.json resolution**: Both host and control panel currently resolve `config.json` via a bare `"config.json"` string, which resolves against the process working directory. This is the core breakage risk when either process moves into a packaged `.exe`.
-
----
-
-## v1.1 System Overview
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  WINDOWS LOGIN EVENT                                              │
-│  Task Scheduler (ONLOGON trigger)                                 │
-│       │                                                           │
-│       └──► host\host.exe  (no console, hidden window style)      │
-│                │                                                  │
-│                ├── resolves config.json from exe directory        │
-│                ├── spawns widget subprocesses via sys.executable  │
-│                └── watches config.json via QFileSystemWatcher     │
-└──────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────┐
-│  USER LAUNCHES MANUALLY                                           │
-│       │                                                           │
-│       └──► control_panel\MonitorControl.exe  (standalone .exe)   │
-│                │                                                  │
-│                ├── resolves config.json from exe directory        │
-│                ├── reads/writes config.json (sole writer)         │
-│                └── "Startup" tab: enables/disables host autostart │
-└──────────────────────────────────────────────────────────────────┘
-
-                    ┌─────────────────────┐
-                    │    config.json       │
-                    │  (shared on disk)    │
-                    │  + autostart flag    │
-                    └─────────────────────┘
-```
+- **Host process** (`host/`): PyQt6 app. `HostWindow.paintEvent` fills the background with a hardcoded `QColor("#000000")` then calls `Compositor.paint()`, which blits RGBA frames from widget subprocesses. Background ownership is split: `HostWindow` fills black, widgets paint their own background color into their RGBA frames.
+- **Widget subprocesses** (`widgets/`): Long-running, Pillow-only (no PyQt6). Each widget calls `Image.new("RGBA", (W, H), self._bg_color)` at the start of every `render_frame()`, painting a solid `(26, 26, 46, 255)` background before drawing content. Background color is hardcoded in widget `__init__`.
+- **Control panel** (`control_panel/`): Separate PyQt6 process. Sole writer of `config.json`. `_collect_config()` builds the full config dict; `_update_widget_settings()` patches the `settings` block of each widget entry. Color fields for Pomodoro are already in the pipeline as `QLineEdit` hex fields.
+- **config.json**: Top-level keys are `layout`, `widgets`, `shortcuts`. Widget color settings live inside `widgets[n].settings`. There is no top-level `bg_color` key yet.
+- **Hot-reload path**: `QFileSystemWatcher` → `ConfigLoader._do_reload()` → `_reconcile()` → `ProcessManager.send_config_update(wid, widget_cfg)` → `ConfigUpdateMessage` on widget's `in_queue` → widget `poll_config_update()` in render loop.
 
 ---
 
-## New Components Required
+## System Overview: v1.2 Color Flow
 
-### Component 1: `autostart` module (new, shared or host)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  CONTROL PANEL (PyQt6 process)                                       │
+│                                                                       │
+│  Layout tab:   ColorPickerWidget  ──► bg_color (top-level in config) │
+│  Calendar tab: ColorPickerWidget  ──► time_color, date_color         │
+│  Pomodoro tab: ColorPickerWidget  ──► work/short_break/long_break    │
+│                   (replaces QLineEdit hex fields)                     │
+│                                                                       │
+│  _collect_config() writes ALL color values into config dict          │
+│  atomic_write_config() → config.json                                 │
+└───────────────────────────┬─────────────────────────────────────────┘
+                             │ file change
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  config.json  (shared on disk, %LOCALAPPDATA%\MonitorControl\)       │
+│                                                                       │
+│  {                                                                    │
+│    "bg_color": "#000000",          ← NEW top-level key               │
+│    "layout": { ... },                                                 │
+│    "widgets": [                                                       │
+│      { "type": "calendar",                                            │
+│        "settings": {                                                  │
+│          "time_color": "#ffffff",  ← NEW in calendar settings        │
+│          "date_color": "#dcdcdc",  ← NEW in calendar settings        │
+│          ...                                                          │
+│        }                                                              │
+│      },                                                               │
+│      { "type": "pomodoro",                                            │
+│        "settings": {                                                  │
+│          "work_accent_color": "#ff4444",  ← EXISTING, already works  │
+│          ...                                                          │
+│        }                                                              │
+│      }                                                                │
+│    ]                                                                  │
+│  }                                                                    │
+└───────────────────────────┬─────────────────────────────────────────┘
+                             │ QFileSystemWatcher hot-reload
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  HOST PROCESS (PyQt6)                                                 │
+│                                                                       │
+│  ConfigLoader._do_reload()                                            │
+│    ├── reads bg_color from top-level  ──► HostWindow.set_bg_color()  │
+│    └── _reconcile() sends CONFIG_UPDATE to changed widgets           │
+│                                                                       │
+│  HostWindow.paintEvent():                                             │
+│    painter.fillRect(self.rect(), self._bg_qcolor)  ← MODIFIED       │
+│    compositor.paint(painter)                                          │
+└───────────────────────────┬─────────────────────────────────────────┘
+                             │ multiprocessing.Queue (CONFIG_UPDATE msg)
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  WIDGET SUBPROCESSES (Pillow, no PyQt6)                               │
+│                                                                       │
+│  CalendarWidget.run():                                                │
+│    poll_config_update() → applies time_color, date_color             │
+│    render_frame():                                                    │
+│      Image.new("RGBA", (W, H), (0, 0, 0, 0))  ← TRANSPARENT bg     │
+│      draw.text(..., fill=self._time_color)                            │
+│      draw.text(..., fill=self._date_color)                            │
+│                                                                       │
+│  PomodoroWidget.run():                                                │
+│    _apply_config() already handles work/break accent colors          │
+│    render_frame():                                                    │
+│      Image.new("RGBA", (W, H), (0, 0, 0, 0))  ← TRANSPARENT bg     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-**Responsibility:** Create and delete a Windows Task Scheduler entry for the host executable. Expose a simple two-function interface: `enable(exe_path)` and `disable()`.
+---
 
-**Location:** `host/autostart.py` or `shared/autostart.py`. Place in `host/` if only the control panel calls it via `config.json` toggle. Place in `shared/` if any future component also needs it. `host/autostart.py` is sufficient for v1.1.
+## Integration Points
 
-**Interface:**
+### Integration Point 1: Host Background Color
+
+**Current state:** `HostWindow.paintEvent` fills with hardcoded `QColor("#000000")`. `HostWindow` has no stored color attribute.
+
+**Required change:** `HostWindow` must hold a `_bg_qcolor: QColor` attribute and expose a setter so `ConfigLoader` can push the new color on hot-reload. `paintEvent` switches from the literal to `self._bg_qcolor`.
+
+**Who calls the setter:** `ConfigLoader._do_reload()` must read `new_config.get("bg_color", "#000000")` and call `self._window.set_bg_color(color_str)` (or equivalent). This requires `ConfigLoader` to have a reference to `HostWindow` — it already has one indirectly via `Compositor`, but a cleaner path is to pass the window (or a color callback) into `ConfigLoader` at construction.
+
+**Simplest approach:** Add an `after_reload` callback already exists on `ConfigLoader`. Extend it or add a `bg_color_callback` parameter that fires with the new color string. Alternatively, have `_do_reload()` call a method on the compositor that passes through to the window. The cleanest minimal change is: `ConfigLoader` already stores `self._current`; the `after_reload` hook in `main.py` can read `config_loader.current_config["bg_color"]` and call `window.set_bg_color()`. No structural change needed.
+
+**Boundary:** Host-internal. No IPC crosses a process boundary for background color — the host reads `bg_color` from config itself.
+
+### Integration Point 2: Widget Transparent Background
+
+**Current state:** Both `CalendarWidget.render_frame()` and `PomodoroWidget.render_frame()` call `Image.new("RGBA", (W, H), self._bg_color)` where `self._bg_color = (26, 26, 46, 255)` (opaque dark blue). The compositor blits these opaque frames with `painter.drawImage(slot_rect, img)` — Qt's `drawImage` respects the alpha channel of the source image, so switching to `(0, 0, 0, 0)` (transparent) immediately makes the host background show through.
+
+**Required change:** Change `self._bg_color = (0, 0, 0, 0)` in widget `__init__`. Remove the `_bg_color` attribute from widgets entirely since widgets no longer own background color. This is a one-line change per widget.
+
+**Constraint:** Widgets must NOT read `bg_color` from config — that is host-only state. Widget processes only receive their own widget config block (`widgets[n]` entry), not the top-level config. This is enforced by the existing IPC design: `ProcessManager.send_config_update(wid, new_widgets[wid])` sends only the widget's own entry.
+
+**Compositor note:** The compositor has a fallback `painter.fillRect(slot_rect, QColor("#1a1a1a"))` for empty slots. This should also reflect the configured background, but since it is an "empty/loading" state, it can remain as a dark fallback or be updated to use `bg_color`. Treat as low priority.
+
+### Integration Point 3: Calendar Color Config
+
+**Current state:** `CalendarWidget.__init__` has `self._text_color = (220, 220, 220, 255)` and `self._time_color = (255, 255, 255, 255)` as hardcoded tuples. The `run()` method's config-update handler only applies `clock_format` and `font`.
+
+**Required changes:**
+1. `__init__`: Read `time_color` and `date_color` from `settings` dict, falling back to current hardcoded values.
+2. `run()` config-update handler: Add `time_color` and `date_color` cases.
+3. `render_frame()`: Use `self._time_color` (already used) and `self._text_color` (rename to `self._date_color` for clarity, or keep as `_text_color` — either works).
+4. Color format: Widget receives hex string (`"#ffffff"`) from config. Must convert to Pillow RGBA tuple. `PIL.ImageColor.getrgb(hex_str)` returns `(r, g, b)` as a 3-tuple; append `255` for full opacity. Pomodoro already does this in `_accent_color()` — reuse the same pattern.
+
+**config.json schema addition:**
+```json
+"settings": {
+  "clock_format": "12h",
+  "font": "Inter",
+  "time_color": "#ffffff",
+  "date_color": "#dcdcdc"
+}
+```
+
+### Integration Point 4: Control Panel Layout Tab — bg_color Picker
+
+**Current state:** Layout tab has only width/height spinboxes. `_collect_config()` reads `self._display_width.value()` and `self._display_height.value()`.
+
+**Required changes:**
+1. Add `ColorPickerWidget` instance for `bg_color` in `_build_layout_tab()`.
+2. `_load_values()`: Read `self._config.get("bg_color", "#000000")` and push to the picker.
+3. `_collect_config()`: Add `config["bg_color"] = self._bg_color_picker.color()` (or `hex()` equivalent on the picker).
+
+**config.json schema addition:** Top-level `"bg_color": "#000000"` key. Default must be `"#000000"` to match current hardcoded value in `HostWindow`.
+
+**`DEFAULT_CONFIG` in `config_io.py`:** Add `"bg_color": "#000000"` to the default dict so fresh installs and `load_config()` calls that hit the fallback path get a valid default.
+
+### Integration Point 5: Control Panel Pomodoro Tab — Replace QLineEdit with ColorPickerWidget
+
+**Current state:** Three `QLineEdit` fields (`_pomo_work_color`, `_pomo_short_break_color`, `_pomo_long_break_color`) already exist and already write hex strings to config. The entire data pipeline is working.
+
+**Required changes:**
+1. Replace `QLineEdit` with `ColorPickerWidget` in `_build_pomodoro_tab()`.
+2. Update `_load_values()` to call `picker.set_color(hex_str)` instead of `lineEdit.setText()`.
+3. Update `_collect_config()` to call `picker.color()` (or `hex()`) instead of `lineEdit.text()`.
+
+**This is the lowest-risk integration point** because the data pipeline (config key names, widget hot-reload handler, `_apply_config`) is already correct. Only the UI widget changes.
+
+### Integration Point 6: Control Panel Calendar Tab — Add Color Pickers
+
+**Current state:** Calendar tab has `clock_format` combo and `font` combo. Color fields absent.
+
+**Required changes:**
+1. Add `ColorPickerWidget` for `time_color` and `date_color` in `_build_calendar_tab()`.
+2. `_load_values()`: Read from `cal_cfg.get("time_color", "#ffffff")` and `cal_cfg.get("date_color", "#dcdcdc")`.
+3. `_collect_config()` `_update_widget_settings` call for calendar: extend the settings dict with `time_color` and `date_color` values.
+
+### Integration Point 7: ColorPickerWidget Component (New)
+
+**Location:** `control_panel/color_picker.py` — control-panel-only, may import PyQt6 freely.
+
+**Interface contract (what callers need):**
 ```python
-def enable_autostart(exe_path: str) -> None:
-    """Register host.exe as a Task Scheduler ONLOGON task."""
+class ColorPickerWidget(QWidget):
+    color_changed = pyqtSignal(str)   # emits hex string on any change
 
-def disable_autostart() -> None:
-    """Remove the Task Scheduler task if it exists."""
-
-def is_autostart_enabled() -> bool:
-    """Return True if the task exists in Task Scheduler."""
+    def color(self) -> str:           # returns current hex string e.g. "#ff4444"
+    def set_color(self, hex_str: str) -> None:  # loads color from hex string
 ```
 
-**Implementation approach:** Call `schtasks.exe` via `subprocess.run()` using the existing `subprocess` module — no new dependencies. This avoids `win32com.taskscheduler` complexity and does not require pywin32 to be imported in the control panel's frozen context. The `schtasks /query` call is the status check, `schtasks /create` enables, and `schtasks /delete` disables.
+**Internal structure:** Hue slider (0–359) + intensity slider (0–100) + fixed saturation (e.g. 0.85–1.0) + live swatch QLabel + hex QLineEdit as fallback. HSV to RGB conversion is pure Python math or via `colorsys` stdlib — no new dependency.
 
-### Component 2: Autostart toggle UI in control panel (modified: `control_panel/main_window.py`)
-
-**Responsibility:** A new "Startup" tab (or group within the Layout tab) containing a checkbox "Start MonitorControl host automatically at login". On change it calls `autostart.enable()` or `autostart.disable()`. The checkbox initial state is populated by `autostart.is_autostart_enabled()`.
-
-**Does NOT require saving to config.json.** Autostart state lives in Task Scheduler, not in config. The toggle acts immediately — no Save button required for this control.
-
-### Component 3: `build/` directory and PyInstaller spec files (new)
-
-**Responsibility:** Reproducible build scripts for both executables.
-
-```
-build/
-├── control_panel.spec    # PyInstaller spec for MonitorControl.exe
-├── host.spec             # PyInstaller spec for host.exe (if packaged)
-└── build.py              # Optional: orchestrates both builds
-```
-
----
-
-## Autostart Implementation: Task Scheduler vs Registry Run Key
-
-### Decision: Use Task Scheduler (ONLOGON trigger)
-
-**Rationale:**
-
-| Criterion | Task Scheduler | Registry HKCU\Run |
-|-----------|---------------|-------------------|
-| No console window | Controlled by `/f` flag + `pythonw` / windowed exe | Requires `pythonw.exe` wrapper; does not apply to `.exe` |
-| Implementation complexity | 3 `schtasks` subprocess calls | 3 `winreg` calls |
-| Already requires pywin32? | No — `schtasks.exe` is a system utility | Yes — or stdlib `winreg` (no new dep) |
-| User visibility | Visible in Task Scheduler UI (transparent) | Hidden unless user checks registry |
-| UAC required? | No — ONLOGON with `/ru <current user>` does not require elevation | No — HKCU does not require elevation |
-| Startup delay control | Yes — `/delay 0:05` to wait 5s after login | No |
-| Working directory control | Yes — `/tr "\"path\to\host.exe\"" /sd <workdir>` | Command string only; no separate workdir |
-| Antivirus sensitivity | Lower (system-blessed mechanism) | Higher (HKCU Run keys are an ATT&CK technique T1547.001) |
-
-Task Scheduler wins on working directory control (critical for config.json resolution — see below) and on working directory being settable in the task definition itself.
-
-**Registry Run key is viable** and simpler code, but the working directory problem makes it harder: the process working directory from a HKCU Run launch is typically `%WINDIR%\System32` or the user profile, not the exe directory, requiring the code to fall back to `sys.executable` path resolution regardless.
-
-### schtasks Command Pattern
-
-```
-# Enable (run as current user, at logon, no interactive requirement)
-schtasks /create /tn "MonitorControl Host" /tr "\"C:\path\to\host.exe\"" /sc ONLOGON /ru <username> /f /rl HIGHEST
-
-# Disable
-schtasks /delete /tn "MonitorControl Host" /f
-
-# Query status (returns non-zero exit if task does not exist)
-schtasks /query /tn "MonitorControl Host"
-```
-
-The `/rl HIGHEST` flag is optional for a windowed app but prevents UAC prompts if the host ever needs elevation for ClipCursor on locked-down machines. For this app it is not required — ClipCursor via pywin32 works at normal user privilege.
-
-The `/f` flag on `/create` overwrites an existing task of the same name silently — safe to call on every "enable" toggle.
-
-**No console window** is handled by the exe itself (PyInstaller `--windowed` flag), not by the task definition. A `--windowed` exe never shows a console regardless of how it is launched.
-
----
-
-## PyInstaller Packaging: Which Executables Need It
-
-### Control Panel: Needs packaging (EXEC-01..04)
-
-The control panel is a standalone PyQt6 app intended for users who do not have Python installed. It must be packaged as a `.exe`. This is the primary packaging target.
-
-### Host: Does NOT need packaging for v1.1
-
-The autostart requirement (STRT-01..04) only specifies that the host launches without a visible terminal/console window. This can be achieved without packaging by:
-- Running `pythonw.exe host\main.py` from the Task Scheduler task (no console, just like a `.exe`)
-- Or packaging it as a secondary goal (EXEC scope only mentions control panel)
-
-**However:** If the control panel `.exe` calls `autostart.enable()` and needs to specify the host executable path, the path it registers depends on whether the host is a `.py` (requires Python) or a `.exe` (standalone). For clean distribution (the milestone goal of "no Python environment required"), the host should also be packaged. The PROJECT.md scope is ambiguous — "Control panel packaged as standalone .exe" is specified but the host requirement is only "no terminal required."
-
-**Build order implication:** Package host first (its spec is simpler — no PyQt6 plugin complexity), then control panel, so the control panel's autostart `enable()` can hardcode the path to `host.exe` in the same distribution directory.
-
----
-
-## PyInstaller Path Resolution: The Critical Problem
-
-### The Problem
-
-Both `host/main.py` and `control_panel/__main__.py` currently reference `config.json` as a bare filename:
-
-```python
-# host/main.py line 87
-config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)
-
-# control_panel/__main__.py line 9
-window = ControlPanelWindow(config_path="config.json")
-```
-
-A bare `"config.json"` resolves against `os.getcwd()` — the process working directory at launch time. When launched from Task Scheduler or by double-clicking a `.exe`, the working directory is **not** guaranteed to be the directory containing the `.exe`.
-
-### The Fix: exe-relative path resolution
-
-The correct pattern uses `sys.executable` (frozen) or `__file__` (source) to anchor the path:
-
-```python
-import sys
-import os
-
-def get_config_path() -> str:
-    """Return absolute path to config.json next to the executable (or script root)."""
-    if getattr(sys, 'frozen', False):
-        # PyInstaller frozen: sys.executable is the .exe path
-        base = os.path.dirname(sys.executable)
-    else:
-        # Development: resolve relative to project root
-        # __file__ here is host/main.py; go up one level
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base, "config.json")
-```
-
-This function can live in `shared/paths.py` and be called by both host and control panel.
-
-### PyInstaller 6.x Path Details
-
-- **One-folder build (recommended):** `sys.executable` points to the `.exe` inside the output folder. `os.path.dirname(sys.executable)` is the folder containing the `.exe` and all bundled DLLs. `config.json` should be placed beside the `.exe` at distribution time — it is NOT bundled (it is user-mutable).
-- **One-file build (avoid for this project):** The `.exe` extracts to a temp directory on each run. `sys._MEIPASS` points to the temp dir, `sys.executable` points to the single `.exe`. An external `config.json` would need to be alongside the single `.exe`, resolved via `os.path.dirname(sys.executable)`. The temp dir extraction on each run also causes a startup delay and makes `multiprocessing` subprocess spawning more complex.
-
-**Recommendation: Use one-folder (`--onedir`) for both executables.** Reasoning:
-1. Faster startup (no extraction step).
-2. `sys.executable` directory equals the bundle directory — `config.json` can live beside the exe.
-3. Multiprocessing subprocess spawning is straightforward: child processes re-use the already-unpacked `_internal/` directory.
-4. Easier to verify and debug (files are visible on disk).
-
----
-
-## Subprocess Spawning from Frozen Host
-
-### The Problem
-
-`host/main.py` uses `multiprocessing.Process(target=run_pomodoro_widget, ...)` with `set_start_method("spawn")`. Under `spawn`, Python serializes the target function reference and re-executes `sys.executable` with special arguments to locate the target.
-
-In a frozen `.exe`, `sys.executable` is the frozen executable itself (not `python.exe`). The child processes will re-execute the `.exe` with multiprocessing bootstrap arguments. This works correctly **if**:
-
-1. `multiprocessing.freeze_support()` is called at the top of the `if __name__ == "__main__"` block — PyInstaller 3.3+ adds this automatically via a runtime hook, but calling it explicitly in `main.py` is defensive and harmless.
-2. The target functions (`run_pomodoro_widget`, `run_calendar_widget`, `run_notification_widget`) are importable from the frozen executable's module namespace.
-3. The widget functions do NOT import PyQt6 (already satisfied — they use Pillow only).
-
-**No code change is required** for multiprocessing to work in one-folder mode. The existing `multiprocessing.set_start_method("spawn")` + target function references are already compatible with PyInstaller's frozen multiprocessing support.
-
-**If the host is also packaged as a `.exe`:** The child widget processes will use `sys.executable` (the host exe) as their interpreter. This is correct — they re-enter the exe via the multiprocessing bootstrap and call the target function. The widget processes do NOT unpack the `.exe` again; they reuse the already-unpacked `_internal/` directory from the parent (PyInstaller 6.9+ behavior).
-
----
-
-## PyInstaller spec: Control Panel
-
-### Hidden Imports to Declare
-
-PyInstaller's static import analysis may miss the following:
-
-| Import | Reason it may be missed | Declaration |
-|--------|-------------------------|-------------|
-| `winreg` | Only used in `autostart.py` which is new | `--hidden-import winreg` |
-| `win32api`, `win32con`, `win32security` | pywin32 DLLs have their own loader; PyInstaller has a hook for `pywin32` but older versions needed explicit hidden imports | Test at build time; add if needed |
-| `PyQt6.QtWidgets`, `PyQt6.QtCore`, `PyQt6.QtGui` | Usually auto-detected; verify | Auto |
-| `control_panel.*`, `shared.*` | Local packages — must be on the module path at analysis time | Ensure `pathex` includes project root in spec |
-
-### Data Files to Bundle
-
-`config.json` must **NOT** be bundled inside the exe. It is user-mutable and must exist alongside the `.exe` in the distribution folder. Do not add it to `datas` in the spec.
-
-Font files (if any are bundled as assets) would go in `datas`. Check `widgets/` for any asset files at build time.
-
-### Recommended Spec Skeleton
-
-```python
-# build/control_panel.spec
-a = Analysis(
-    ['control_panel/__main__.py'],
-    pathex=['.'],                         # project root on analysis path
-    binaries=[],
-    datas=[],                             # no bundled data files for v1.1
-    hiddenimports=['winreg'],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-)
-pyz = PYZ(a.pure, a.zipped_data)
-exe = EXE(
-    pyz, a.scripts, [],
-    exclude_binaries=True,
-    name='MonitorControl',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    console=False,                        # --windowed: no console window
-    icon=None,                            # set to .ico path when available
-)
-coll = COLLECT(
-    exe, a.binaries, a.zipfiles, a.datas,
-    strip=False,
-    upx=False,
-    name='MonitorControl',
-)
-```
-
-The `console=False` flag is equivalent to `--windowed` and is the correct setting for the control panel.
-
----
-
-## Data Flow Changes for v1.1
-
-### New: Autostart Toggle Flow
-
-```
-User checks/unchecks "Start at login" in control_panel Startup tab
-    │
-    ├── is_checked = True
-    │       └── autostart.enable(host_exe_path)
-    │               └── subprocess.run(["schtasks", "/create", ...])
-    │
-    └── is_checked = False
-            └── autostart.disable()
-                    └── subprocess.run(["schtasks", "/delete", ...])
-
-# No config.json write needed — state lives in Task Scheduler
-# Checkbox initial state on panel open:
-autostart.is_autostart_enabled()
-    └── subprocess.run(["schtasks", "/query", ...])
-    └── returncode == 0  →  enabled
-```
-
-### Modified: Config Path Resolution Flow
-
-```
-# Before v1.1 (broken in packaged context):
-config_path = "config.json"                    # resolves against cwd
-
-# After v1.1 (correct in all contexts):
-config_path = shared.paths.get_config_path()   # resolves against exe dir or project root
-```
-
-This change touches:
-- `host/main.py` — `ConfigLoader("config.json", ...)` → `ConfigLoader(get_config_path(), ...)`
-- `host/main.py` — `config_dir = os.path.dirname(os.path.abspath("config.json"))` → `config_dir = os.path.dirname(get_config_path())`
-- `control_panel/__main__.py` — `ControlPanelWindow(config_path="config.json")` → `ControlPanelWindow(config_path=get_config_path())`
-
-### Modified: Command File Path
-
-The pomodoro command file path in `host/main.py` is derived from `config.json`'s directory:
-
-```python
-config_dir = os.path.dirname(os.path.abspath("config.json"))
-cmd_path = os.path.join(config_dir, "pomodoro_command.json")
-```
-
-This automatically becomes correct once `config.json` is resolved to the exe directory — `config_dir` will be the exe's folder and `pomodoro_command.json` will be written there. No separate fix needed beyond fixing the config path resolution.
+**Constraint:** Must NOT be imported in widget subprocesses. It lives in `control_panel/` which is never imported by `widgets/` or `host/`.
 
 ---
 
@@ -333,133 +191,242 @@ This automatically becomes correct once `config.json` is resolved to the exe dir
 
 | Component | Status | Location | Change |
 |-----------|--------|----------|--------|
-| `shared/paths.py` | **New** | `shared/paths.py` | `get_config_path()` helper |
-| `host/autostart.py` | **New** | `host/autostart.py` | Task Scheduler enable/disable/query |
-| `control_panel/main_window.py` | **Modified** | existing | Add Startup tab with autostart toggle |
-| `host/main.py` | **Modified** | existing | Use `get_config_path()` instead of bare `"config.json"` |
-| `control_panel/__main__.py` | **Modified** | existing | Use `get_config_path()` instead of bare `"config.json"` |
-| `build/control_panel.spec` | **New** | `build/` | PyInstaller spec for control panel exe |
-| `build/host.spec` | **New** (optional) | `build/` | PyInstaller spec for host exe |
+| `control_panel/color_picker.py` | **New** | `control_panel/` | `ColorPickerWidget` — hue/intensity/swatch/hex |
+| `host/window.py` | **Modified** | existing | Add `_bg_qcolor` attr + `set_bg_color()` method; paintEvent uses attr |
+| `host/main.py` | **Modified** | existing | `after_reload` callback reads `bg_color` from config_loader, calls `window.set_bg_color()` |
+| `host/config_loader.py` | **No change needed** | existing | `after_reload` callback pattern already covers bg_color update |
+| `widgets/calendar/widget.py` | **Modified** | existing | Transparent bg; add `time_color`/`date_color`; handle in `__init__` + `run()` update handler |
+| `widgets/pomodoro/widget.py` | **Modified** | existing | Transparent bg only (color fields already pipeline-ready) |
+| `control_panel/main_window.py` | **Modified** | existing | Replace Pomodoro QLineEdit colors; add Calendar color pickers; add Layout bg_color picker |
+| `control_panel/config_io.py` | **Modified** | existing | Add `"bg_color": "#000000"` to `DEFAULT_CONFIG` |
+| `config.json` | **Modified** | `%LOCALAPPDATA%` | Add top-level `bg_color`; add `time_color`/`date_color` to calendar settings |
 
 ---
 
-## Anti-Patterns for v1.1
+## Data Flow: Color Config Update End-to-End
 
-### Anti-Pattern 1: Storing Autostart State in config.json
-
-**What people do:** Add an `"autostart": true` key to config.json and read it on startup.
-
-**Why it's wrong:** config.json is the host's hot-reload config. The host would need to read a flag telling it to start itself — circular. The actual autostart state is a Windows system concern, not an app config concern. Task Scheduler is the ground truth; polling config.json to mirror it adds a synchronization surface that can drift.
-
-**Do this instead:** Call `schtasks /query` to get the current state. State lives in exactly one place: Task Scheduler. No flag in config.json.
-
-### Anti-Pattern 2: Bundling config.json Inside the .exe
-
-**What people do:** Add `config.json` to PyInstaller's `datas` list so it gets bundled into `_internal/`.
-
-**Why it's wrong:** config.json is the sole IPC channel between control panel and host. If it is bundled read-only inside the exe, the control panel cannot write to it (it would write next to the exe while the host reads from the read-only bundle path). Users cannot manually edit it either.
-
-**Do this instead:** Keep config.json external to both executables, alongside the executables in the distribution directory. Both processes locate it via `get_config_path()` anchored to `sys.executable`'s directory.
-
-### Anti-Pattern 3: One-File Build for the Host
-
-**What people do:** Use `--onefile` for the host exe to produce a single portable file.
-
-**Why it's wrong:** One-file builds extract to a temp directory on each run. Multiprocessing child processes (widget subprocesses) also use `sys.executable` which points to the single `.exe`, causing each child spawn to attempt extraction into another temp dir. This compounds startup latency and can cause race conditions where the parent's extraction hasn't finished when the first child tries to reuse the temp dir.
-
-**Do this instead:** Use `--onedir` (the default). The `_internal/` directory is extracted once at install time, not at runtime. Widget subprocesses reuse it immediately.
-
-### Anti-Pattern 4: Calling schtasks with a Relative Path in /tr
-
-**What people do:** Register `schtasks /create /tr "host.exe"` without an absolute path.
-
-**Why it's wrong:** Task Scheduler resolves the program path relative to `System32` or the user profile, not the exe's directory. The task will fail to find the executable.
-
-**Do this instead:** Always pass `sys.executable` (the absolute path to the host exe at the time the control panel registers the task) as the `/tr` argument. Quote it to handle spaces in the path.
-
-### Anti-Pattern 5: Resolving config.json Relative to `__file__` in the Spec
-
-**What people do:** In production code, use `os.path.dirname(__file__)` to find config.json.
-
-**Why it's wrong:** In a frozen exe, `__file__` for `host/main.py` points inside `sys._MEIPASS/_internal/`, which is the bundle directory — not the directory beside the exe. `config.json` is external (not bundled) and lives beside the exe.
-
-**Do this instead:** Use `os.path.dirname(sys.executable)` when `sys.frozen` is set. Use `__file__`-relative paths only for files that ARE bundled (e.g., fonts, images in `datas`). For user-mutable external files, always anchor to `sys.executable`.
-
----
-
-## Build Order Recommendation
-
-Phase ordering for v1.1 implementation:
+### User changes bg_color in control panel
 
 ```
-Step 1: shared/paths.py
-    Reason: Both host and control panel depend on it.
-    Risk: None — pure Python, no new dependencies.
+User drags hue/intensity slider in ColorPickerWidget (Layout tab)
+    │
+    ▼
+ColorPickerWidget.color_changed signal → (connected to nothing at panel level)
+    │  (no live preview needed — color saves on Save button)
+    ▼
+User clicks Save
+    │
+    ▼
+_collect_config()
+    ├── config["bg_color"] = self._bg_color_picker.color()   # "#1a1a2e"
+    └── ... rest of existing fields unchanged
+    │
+    ▼
+atomic_write_config(path, config)   → config.json file on disk
+    │
+    ▼                               (QFileSystemWatcher fires in host)
+ConfigLoader._on_file_changed()
+    └── debounce 100ms → _do_reload()
+            ├── new_config = json.load(...)
+            ├── self._current = new_config
+            ├── _reconcile(old_config, new_config)
+            │       └── sends CONFIG_UPDATE to each changed widget
+            └── calls after_reload()
+                    └── window.set_bg_color(new_config.get("bg_color", "#000000"))
+                            └── self._bg_qcolor = QColor(color_str)
+                                self.update()  ← triggers paintEvent
+                                    └── painter.fillRect(self.rect(), self._bg_qcolor)
+                                        compositor.paint(painter)
+```
 
-Step 2: host/main.py + control_panel/__main__.py path fix
-    Reason: Fix config.json resolution before any packaging work.
-             If this is broken in packaged context, everything downstream fails.
-    Risk: Low — well-understood change, can be validated in source mode first.
+### User changes time_color in control panel
 
-Step 3: host/autostart.py (Task Scheduler integration)
-    Reason: Must be written and testable in source mode before control panel
-            UI is wired up. schtasks calls can be validated in isolation.
-    Risk: Medium — subprocess.run(schtasks) parsing exit codes; test with
-            /query for an existing and non-existing task name.
-
-Step 4: control_panel/main_window.py Startup tab
-    Reason: Wires the autostart module into the UI. Depends on Step 3.
-    Risk: Low — UI work only.
-
-Step 5: PyInstaller build for control_panel (control_panel.spec)
-    Reason: The main packaging deliverable. Depends on Steps 1-4 being correct.
-    Risk: High — likely requires iteration on hidden imports; run pyi-makespec
-            first to generate base spec, then refine.
-
-Step 6 (optional): PyInstaller build for host (host.spec)
-    Reason: If clean distribution without Python is required for the host.
-            Not strictly required by STRT spec; required by distribution goal.
-    Risk: High — multiprocessing + winrt + pywin32 in a single frozen exe
-            is the most complex build; test widget subprocess spawning
-            explicitly after packaging.
+```
+... same Save → atomic write → QFileSystemWatcher path as above ...
+    │
+    ▼
+_reconcile() detects calendar widget settings changed
+    └── send_config_update("calendar", new_calendar_widget_cfg)
+            └── in_queue.put_nowait(ConfigUpdateMessage(...))
+                    │
+                    ▼                         (inside CalendarWidget subprocess)
+            poll_config_update() → returns new config dict
+                └── settings = new_cfg["settings"]
+                    self._time_color = _parse_color(settings["time_color"])
+                    self._date_color = _parse_color(settings["date_color"])
+                        └── ImageColor.getrgb(hex) + (255,) = RGBA tuple
+                    (next render_frame() uses updated colors)
 ```
 
 ---
 
-## Integration Points
+## Recommended Project Structure Changes
 
-### Internal Boundaries (v1.1 changes)
+```
+control_panel/
+├── __init__.py
+├── __main__.py
+├── autostart.py
+├── color_picker.py     ← NEW
+├── config_io.py        ← MODIFIED (DEFAULT_CONFIG)
+└── main_window.py      ← MODIFIED (3 integration points)
 
-| Boundary | Communication | v1.1 Change |
-|----------|---------------|-------------|
-| Control panel ↔ Task Scheduler | `subprocess.run(["schtasks", ...])` | New — via `host/autostart.py` |
-| Control panel ↔ Host (autostart path) | `sys.executable` path passed to `schtasks /create /tr` | New — control panel must know host exe path |
-| Host ↔ config.json | `get_config_path()` anchored to exe dir | Modified path resolution |
-| Control panel ↔ config.json | `get_config_path()` anchored to exe dir | Modified path resolution |
-| PyInstaller ↔ multiprocessing | `freeze_support()` + `sys.executable` bootstrap | Existing pattern; verified compatible |
+host/
+├── window.py           ← MODIFIED (set_bg_color + paintEvent)
+├── main.py             ← MODIFIED (after_reload reads bg_color)
+└── ... unchanged
 
-### Knowing the Host Exe Path from the Control Panel
+widgets/
+├── calendar/widget.py  ← MODIFIED (transparent bg + color fields)
+├── pomodoro/widget.py  ← MODIFIED (transparent bg only)
+└── ... unchanged
+```
 
-This is a practical concern: when the control panel calls `autostart.enable()`, it needs to know the path to `host.exe`. Options:
+---
 
-1. **Assume co-location (recommended for v1.1):** `host.exe` lives in the same distribution directory as `MonitorControl.exe`. The control panel computes `os.path.join(os.path.dirname(sys.executable), "host.exe")`. Simple and correct for the intended distribution layout.
-2. **Configurable path in config.json:** Store `"host_exe_path"` in config.json. More flexible, but adds a config key that must be set at install time.
-3. **Registry lookup:** Read the host path from a registry install key. Requires an installer.
+## Architectural Patterns
 
-Option 1 is correct for v1.1 given the distribution model is "copy both exes to same folder."
+### Pattern 1: Host-Owned Global State, Widget-Owned Per-Widget State
+
+**What:** Background color is host-only state. Widget accent/text colors are widget-process state. The boundary is config schema location: top-level key → host reads it; `widgets[n].settings` key → widget subprocess reads it via `ConfigUpdateMessage`.
+
+**When to use:** Any future color or visual property that spans all widgets (border color, global opacity) goes top-level → host. Any property scoped to a single widget goes in that widget's `settings` block.
+
+**Trade-offs:** Clear ownership. The downside is that widgets cannot inspect the background color for contrast calculations — but that is out of scope for v1.2.
+
+### Pattern 2: Transparent Widget Canvases
+
+**What:** Widgets use `(0, 0, 0, 0)` as their Pillow image background. The compositor's `painter.drawImage()` already preserves alpha (Qt's default composition mode is `SourceOver`). The host fills the background before compositing, so transparency in widget frames reveals the host background.
+
+**When to use:** Always, once the host owns background color. There is no case in v1.2 where a widget should paint its own background.
+
+**Trade-offs:** If the host background is not filled (e.g. bug where `set_bg_color` fails), widgets appear against whatever Qt paints by default (likely the system window background or undefined). This is a debugging concern, not a production concern.
+
+### Pattern 3: Color as Hex String in Config, RGBA Tuple in Widgets
+
+**What:** Config stores colors as hex strings (`"#ff4444"`). Host reads to `QColor(hex_str)` directly (QColor accepts hex strings). Widget subprocesses convert via `PIL.ImageColor.getrgb(hex_str)` + append `255` for alpha. This avoids storing RGBA tuples in JSON (awkward) and avoids parsing complexity.
+
+**When to use:** All color values in config.json. Consistent format allows the control panel to read/write without conversion.
+
+**Example (widget side):**
+```python
+from PIL import ImageColor
+
+def _parse_color(hex_str: str) -> tuple:
+    """Convert "#rrggbb" to Pillow RGBA tuple."""
+    rgb = ImageColor.getrgb(hex_str)
+    return rgb + (255,) if len(rgb) == 3 else rgb
+```
+
+Pomodoro already uses this exact pattern in `_accent_color()`. Calendar should adopt the same helper.
+
+### Pattern 4: Default Values Mirror Current Hardcodes
+
+**What:** Every new color config key must default to the currently hardcoded value. If `time_color` is absent from config, `settings.get("time_color", "#ffffff")` returns `"#ffffff"` — matching the existing `(255, 255, 255, 255)` tuple. If `bg_color` is absent from top-level config, `config.get("bg_color", "#000000")` matches the existing `QColor("#000000")` in paintEvent.
+
+**Why:** Zero visual change on upgrade. Users who do not open the control panel after upgrading to v1.2 see identical output.
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Widget Reads bg_color from Config
+
+**What people do:** Pass the full config dict to widgets (not just their settings block) so they can read `bg_color` and use it for their own background.
+
+**Why it's wrong:** Violates the existing architecture boundary. `ProcessManager.send_config_update(wid, new_widgets[wid])` intentionally sends only the widget's own config entry. Changing this would mean widgets receive the entire config, coupling widget code to top-level schema. It also contradicts the ownership model: the host compositor owns background fill, not the widget.
+
+**Do this instead:** Widget backgrounds are `(0, 0, 0, 0)`. The host fills the background before compositing. Widgets never know the background color.
+
+### Anti-Pattern 2: Storing QColor in HostWindow Before set_bg_color Exists
+
+**What people do:** Hardcode a second literal in paintEvent as an interim step — e.g. change `"#000000"` to `"#1a1a2e"` without making it configurable.
+
+**Why it's wrong:** Creates two hardcoded values to track instead of one. Makes the configurable path harder to verify.
+
+**Do this instead:** Add `set_bg_color()` and the `_bg_qcolor` attribute in the same commit as the transparent widget change. Both changes are one-liners; they belong together.
+
+### Anti-Pattern 3: ColorPickerWidget in shared/ or widgets/
+
+**What people do:** Put `color_picker.py` in `shared/` to make it "available everywhere."
+
+**Why it's wrong:** `ColorPickerWidget` imports PyQt6. Widget subprocesses must never import PyQt6 (crashes on Windows spawn). `shared/` is imported by widget subprocesses via `shared.message_schema` and `shared.paths`. Placing PyQt6 code in `shared/` risks accidental import and violates the no-PyQt6-in-subprocesses constraint.
+
+**Do this instead:** Keep `color_picker.py` in `control_panel/`. It is only needed by the control panel. If the host ever needed a color picker (it doesn't), it would be in `host/`.
+
+### Anti-Pattern 4: Live Preview Requires a New IPC Channel
+
+**What people do:** Add a new queue or socket so the control panel can push color changes to the host in real time (without saving to config.json).
+
+**Why it's wrong:** The entire architecture relies on config.json as the single source of truth with a single write path. Adding a second live-preview channel creates two config paths that can diverge. The complexity is not justified for a static widget bar.
+
+**Do this instead:** Colors apply on Save only. The existing hot-reload path (config.json → QFileSystemWatcher → after_reload) is fast enough for a save-to-apply UX. If instant preview were required, it would be a future milestone concern.
+
+---
+
+## Build Order
+
+```
+Step 1: control_panel/color_picker.py (ColorPickerWidget)
+    Why: All three control panel integration points depend on this component.
+         No other code depends on it yet — zero risk to existing functionality.
+         Can be developed and tested in isolation with a small test harness.
+
+Step 2: host/window.py — add set_bg_color() + _bg_qcolor attribute
+    Why: Simple, isolated, testable. Cosmetic change to existing code.
+         No widget or control panel changes needed to verify this in isolation:
+         temporarily hardcode window.set_bg_color("#1a1a2e") in main.py to test.
+
+Step 3: widgets/calendar/widget.py + widgets/pomodoro/widget.py — transparent bg
+    Why: Can be verified independently of config changes. Change bg to (0,0,0,0)
+         and observe that host background shows through. Confirms compositor
+         alpha behavior before wiring up any new config keys.
+         Both widgets change together — same one-line fix in each.
+
+Step 4: config.json schema + config_io.py DEFAULT_CONFIG + host/main.py after_reload
+    Why: Add "bg_color" to config.json and DEFAULT_CONFIG. Wire after_reload
+         in main.py to call window.set_bg_color(). This closes the host-side
+         bg_color pipeline. Verify: edit config.json manually, confirm hot-reload
+         changes background color.
+
+Step 5: widgets/calendar/widget.py — time_color + date_color config keys
+    Why: Depends on Step 3 (transparent bg already in place). Add config reading
+         in __init__ and run() update handler. Verify: add time_color to
+         config.json calendar settings manually, confirm hot-reload applies.
+
+Step 6: control_panel/main_window.py — Pomodoro tab QLineEdit → ColorPickerWidget
+    Why: Lowest risk integration. Pipeline already works. UI-only change.
+         Verify: save Pomodoro color from picker, confirm widget updates.
+
+Step 7: control_panel/main_window.py — Calendar tab color pickers
+    Why: Depends on Steps 1 and 5. Adds time_color/date_color pickers.
+         Verify: save from picker, confirm calendar widget color updates.
+
+Step 8: control_panel/main_window.py — Layout tab bg_color picker
+    Why: Depends on Steps 1 and 4. Adds bg_color picker.
+         Verify: save from picker, confirm host background changes.
+```
+
+**Rationale for this order:**
+- Steps 1–3 are pure local changes with no cross-process dependencies — easy to verify and easy to revert.
+- Step 4 is the first change that touches the hot-reload pipeline; doing it after the widget side is transparent means the visual result is immediately visible.
+- Steps 6–8 are control panel UI work; they are last because they require the full pipeline (host + widget side) to be working for end-to-end verification.
 
 ---
 
 ## Sources
 
-- PyInstaller runtime information (`sys._MEIPASS`, `sys.frozen`): [PyInstaller 6.19.0 — Run-time Information](https://pyinstaller.org/en/stable/runtime-information.html)
-- PyInstaller multiprocessing recipe: [PyInstaller Wiki — Recipe Multiprocessing](https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing)
-- PyInstaller common issues (one-file + multiprocessing): [PyInstaller 6.19.0 — Common Issues](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html)
-- PyInstaller PyQt6 packaging tutorial: [Python GUIs — Packaging PyQt6 for Windows with PyInstaller](https://www.pythonguis.com/tutorials/packaging-pyqt6-applications-windows-pyinstaller/)
-- schtasks create reference: [Microsoft Learn — schtasks create](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create)
-- Registry Run keys reference: [Microsoft Learn — Run and RunOnce Registry Keys](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys)
-- Task Scheduler vs Registry Run key comparison: [Windows Automatic Startup Locations — gHacks](https://www.ghacks.net/2016/06/04/windows-automatic-startup-locations/)
+- Direct inspection of existing codebase (HIGH confidence for all claims):
+  - `host/window.py` — paintEvent background fill, hardcoded `QColor("#000000")`
+  - `host/compositor.py` — `painter.drawImage()` compositing path
+  - `host/config_loader.py` — `after_reload` callback, `_reconcile` sending `ConfigUpdateMessage`
+  - `widgets/calendar/widget.py` — hardcoded `_bg_color`, `_text_color`, `_time_color` tuples
+  - `widgets/pomodoro/widget.py` — hardcoded `_bg_color`, existing `_apply_config` color handling
+  - `control_panel/main_window.py` — existing `QLineEdit` color fields, `_collect_config`, `_update_widget_settings`
+  - `control_panel/config_io.py` — `DEFAULT_CONFIG`, `atomic_write_config`
+  - `shared/message_schema.py` — `ConfigUpdateMessage` carries `widget_id` + `config` (widget-scoped only)
+  - `host/process_manager.py` — `send_config_update(wid, new_widgets[wid])` confirms widget-scoped delivery
 
 ---
-*Architecture research for: MonitorControl v1.1 — Autostart and Distribution*
+*Architecture research for: MonitorControl v1.2 — Configurable Colors*
 *Researched: 2026-03-27*

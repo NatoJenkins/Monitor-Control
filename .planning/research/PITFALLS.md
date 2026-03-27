@@ -1,7 +1,7 @@
 # Pitfalls Research
 
 **Domain:** Python/PyQt6 desktop widget bar — Windows, borderless always-on-top window, multiprocessing IPC, Win32 APIs
-**Researched:** 2026-03-26 (v1.0) | 2026-03-27 (v1.1 supplement: PyInstaller + autostart)
+**Researched:** 2026-03-26 (v1.0) | 2026-03-27 (v1.1 supplement: PyInstaller + autostart) | 2026-03-27 (v1.2 supplement: configurable colors)
 **Confidence:** HIGH (multiprocessing, Qt window flags, QFileSystemWatcher) | MEDIUM (ClipCursor reset scenarios, WinRT async threading) | LOW (notification suppression)
 
 ---
@@ -593,6 +593,414 @@ Current widget processes (pomodoro, calendar, notification) use Pillow and winrt
 
 ---
 
+## v1.2 Supplement: Configurable Color System Pitfalls
+
+*Added 2026-03-27. Addresses the v1.2 scope: moving background ownership to host, per-widget color config, HSL color picker widget in control panel, colorsys conversions, zero-visual-change upgrade guarantee.*
+*Confidence: HIGH (Python colorsys docs, Qt QColor docs, Pillow ImageColor source) | MEDIUM (QPainter transparent compositing behavior, swatch repaint pattern) | LOW (edge-case color picker DPI behavior)*
+
+---
+
+### Pitfall 17: `colorsys.hls_to_rgb()` Argument Order Is H-L-S, Not H-S-L — Saturation and Lightness Are Swapped
+
+**Severity:** HIGH
+
+**What goes wrong:**
+The developer writes a color conversion expecting HSL (Hue-Saturation-Lightness) convention and calls `colorsys.hls_to_rgb(hue, saturation, lightness)`. Python's `colorsys` module uses **HLS** ordering: `hls_to_rgb(h, l, s)` — lightness is the second argument, saturation is the third. Passing them reversed produces colors that look wildly wrong: a high-saturation vivid red becomes a muted pastel; a low-saturation gray becomes a fully saturated color. The confusion is compounded because the function name `hls_to_rgb` does not spell out the argument order.
+
+**Why it happens:**
+The industry-standard "HSL" order (Hue, Saturation, Lightness) used by CSS, most color pickers, and Qt's own `QColor.fromHslF()` puts saturation before lightness. Python's `colorsys` module uses the opposite HLS convention inherited from older color science literature. The function signature `hls_to_rgb(h, l, s)` is documented but the name alone is ambiguous to anyone who learned HSL from CSS or web tooling.
+
+**How to avoid:**
+Always name the arguments explicitly at call sites or use a wrapper function:
+```python
+import colorsys
+
+def hsl_to_rgb_tuple(hue: float, saturation: float, lightness: float) -> tuple[int, int, int]:
+    """Convert HSL (CSS convention) to RGB. All inputs 0.0-1.0, outputs 0-255."""
+    r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)  # NOTE: l before s
+    return (round(r * 255), round(g * 255), round(b * 255))
+```
+Name the wrapper after the CSS convention (HSL) so callers never interact with the HLS order directly. Never call `colorsys.hls_to_rgb` at inline call sites with positional arguments — always use the wrapper.
+
+**Warning signs:**
+- Color picker swatch shows a muted color when the saturation slider is at maximum
+- Picking a gray (saturation = 0) produces an unexpected vivid color
+- Unit test `hsl_to_rgb(0.0, 1.0, 0.5)` (pure red) returns something other than `(255, 0, 0)`
+
+**Phase to address:** v1.2 Phase 1 — ColorPickerWidget implementation. Write a unit test with known HSL → RGB values (pure red, pure green, pure blue, gray) before any picker UI is built.
+
+---
+
+### Pitfall 18: `colorsys` All-Inputs-Are-0–1 — Passing Integer 0–255 RGB or Integer 0–360 Hue Produces Silent Wrong Output
+
+**Severity:** HIGH
+
+**What goes wrong:**
+`colorsys.hls_to_rgb()` and `colorsys.rgb_to_hls()` expect all inputs in the range `[0.0, 1.0]`. If a developer passes an integer hue in the range 0–360 (as used by CSS and QSlider values), or integer RGB values in 0–255, the function does not raise an error — it returns values outside `[0.0, 1.0]` silently. Downstream code that passes these unclamped floats to Pillow's `Image.new()` as an RGBA tuple gets clamped or wrapped to unexpected colors.
+
+**Why it happens:**
+`colorsys` performs no input validation. Passing `hue=180` (degrees) when 0–1 is expected gives `hls_to_rgb(180, l, s)` which computes a hue wrapping at 180×6 = 1080 full rotations and lands back at hue=0 (red). The result is wrong but not obviously so. QSlider returns integer values (0–359 for hue, 0–100 for percent intensity) that must be normalized before passing to colorsys.
+
+**How to avoid:**
+Normalize at the boundary where QSlider values enter the color math:
+```python
+# QSlider range: hue 0..359, intensity 0..100
+hue_norm = hue_slider.value() / 359.0
+intensity_norm = intensity_slider.value() / 100.0
+```
+Always keep the normalized 0–1 floats internal to the color math layer; convert to 0–255 integers only at the final step when constructing a Pillow RGBA tuple or a hex string. Never mix conventions in the same function.
+
+**Warning signs:**
+- Color swatch is always red or always white regardless of slider position
+- `colorsys.hls_to_rgb()` returns values greater than 1.0 or less than 0.0
+- QSlider value is used directly in a colorsys call without division
+
+**Phase to address:** v1.2 Phase 1 — ColorPickerWidget. Add an assertion or explicit normalization at every point where slider integer values cross into color math.
+
+---
+
+### Pitfall 19: `QColor.fromHslF()` Hue for Achromatic Colors Is -1, Not 0 — Storing or Round-Tripping via Hex Loses Achromatic
+
+**Severity:** MEDIUM
+
+**What goes wrong:**
+When a user sets saturation to 0 (a gray), Qt's `QColor.hslHueF()` returns `-1` to indicate "no hue" (achromatic). If the ColorPickerWidget reads back a stored `#808080` hex value via `QColor` and calls `hslHueF()` to restore the hue slider position, it gets `-1`. Passing `-1` to the hue slider as a position value (or to colorsys) produces an out-of-range crash or places the slider at the minimum. The user's hue preference is lost after any round-trip through gray.
+
+**Why it happens:**
+The achromatic hue convention (`-1` in Qt, undefined in CSS) is a mathematical reality: when saturation is zero, all hues map to the same gray and hue is undefined. Qt documents this behavior but it is easy to miss. The problem only manifests for grays — the entire color range with saturation = 0.
+
+**How to avoid:**
+Track the hue slider's last-set value separately from the displayed color value. Do not read back the hue from a derived hex string:
+```python
+class ColorPickerWidget(QWidget):
+    def __init__(self, ...):
+        self._hue = 0.0       # 0.0..1.0 — persists even when saturation=0
+        self._intensity = 0.5  # 0.0..1.0
+
+    def _set_from_hex(self, hex_str: str) -> None:
+        color = QColor(hex_str)
+        hue = color.hslHueF()
+        if hue >= 0.0:  # only update hue if the color is not achromatic
+            self._hue = hue
+        self._intensity = color.lightnessF()
+        # Do NOT update _hue when hue == -1; keep last-known hue
+```
+This is the same pattern used by all professional color pickers: the hue ring stays at its last position when the user drags saturation to zero.
+
+**Warning signs:**
+- Dragging saturation to 0, then back up, always snaps hue to the leftmost position
+- Setting a gray via hex input loses the previous hue
+- Unit test: set hue to 0.5 (cyan), reduce saturation to 0, increase saturation — hue should still be 0.5
+
+**Phase to address:** v1.2 Phase 1 — ColorPickerWidget. Test round-trip through zero-saturation explicitly before integration.
+
+---
+
+### Pitfall 20: `ImageColor.getrgb()` Raises `ValueError` on Invalid Hex — Uncaught Exception Crashes Widget Subprocess
+
+**Severity:** HIGH
+
+**What goes wrong:**
+The Pomodoro widget calls `ImageColor.getrgb(hex_color)` to parse accent colors from config. If the user typed a malformed hex string into the color field (e.g., `"#ff44"`, `"#gg0000"`, `"red"` without quotes, or an empty string), `ImageColor.getrgb()` raises `ValueError`. In a widget subprocess, this exception propagates out of `render_frame()`, terminates `run()`, and kills the subprocess. The host compositor marks the slot as crashed (dark red fill) and the widget disappears from the bar. The only recovery is a config change or host restart.
+
+**Why it happens:**
+`ImageColor.getrgb()` validates color strings strictly. Any string not matching a known color name, 3/4/6/8-digit hex, or CSS color function raises `ValueError`. The control panel's hex QLineEdit has no format validation, so invalid strings can reach config.json. When the widget subprocess receives this config via `ConfigUpdateMessage`, it calls `getrgb()` during the next render and crashes.
+
+**How to avoid:**
+Validate and normalize hex colors at two points:
+1. In the control panel before saving to config — reject invalid inputs at the UI layer with a visual indicator.
+2. In the widget's `_apply_config()` with a safe fallback:
+```python
+def _safe_hex_color(self, value: str, fallback: str) -> str:
+    """Return value if it is a valid Pillow color string, else fallback."""
+    try:
+        from PIL import ImageColor
+        ImageColor.getrgb(value)
+        return value
+    except (ValueError, AttributeError):
+        return fallback
+```
+Call `_safe_hex_color()` whenever applying color settings from config. The widget subprocess must never crash from a bad color value — it should silently use the fallback.
+
+**Warning signs:**
+- Pomodoro widget slot turns dark red after editing accent color in control panel
+- Widget subprocess disappears from bar immediately after a config save with a new color
+- `ValueError: unknown color specifier` in widget subprocess logs
+
+**Phase to address:** v1.2 Phase 2 — Pomodoro color picker integration. Add `_safe_hex_color()` to PomodoroWidget before replacing hex QLineEdit fields with ColorPickerWidget.
+
+---
+
+### Pitfall 21: Widget Background Color Ownership Transfer — Widget Renders Opaque Background, Host Also Fills Background — Double-Fill Causes Color Conflict
+
+**Severity:** HIGH
+
+**What goes wrong:**
+Currently widgets render with a hardcoded opaque `bg_color` (e.g., `Image.new("RGBA", (W, H), (26, 26, 46, 255))`). The host `paintEvent` fills the entire window with `#000000` before compositing widget frames. When `bg_color` is moved to the host (BG-01), if widget code still fills with its own background color, the user-configured `bg_color` set in the host is overwritten by the widget's fill on every frame. The bar appears to use the widget's hardcoded color, not the user's chosen color.
+
+**Why it happens:**
+The natural migration path is: (1) add `bg_color` to host, (2) test. If the widget's `Image.new("RGBA", ...)` still uses an opaque color tuple as its background, the widget's fill covers the host's fill completely. The widget's rgba_bytes contain fully opaque pixels that `painter.drawImage()` composites with `SourceOver` — which for alpha=255 pixels simply replaces whatever is below.
+
+**How to avoid:**
+When migrating background ownership to the host, make widget backgrounds **transparent** simultaneously:
+```python
+# Widget: change opaque background to transparent
+img = Image.new("RGBA", (W, H), (0, 0, 0, 0))  # fully transparent
+
+# Host paintEvent: fill with user-configured color
+bg = QColor(self._bg_color)  # from config
+painter.fillRect(self.rect(), bg)
+self.compositor.paint(painter)  # composites widget frames on top
+```
+Treat this as a single atomic change: widgets go transparent at the same commit that host gains the configurable fill. Do not make one without the other.
+
+**Warning signs:**
+- Changing `bg_color` in the control panel has no visible effect on the bar
+- The bar color appears to be the widget's hardcoded color, not the configured one
+- The bar changes color when all widgets are stopped but not when they are running
+
+**Phase to address:** v1.2 Phase 1 — Background ownership migration. The transparency switch and host color fill must be done in the same phase, not sequentially. Write a test that verifies a configured `bg_color` of `#ff0000` produces a red bar when no widgets are running.
+
+---
+
+### Pitfall 22: Transparent Widget Frame Composited Over Old Frame — Previous Frame Content Bleeds Through on Repaint
+
+**Severity:** MEDIUM
+
+**What goes wrong:**
+After widgets switch to transparent backgrounds, the host's `paintEvent` fills the background with the configured `bg_color` before calling `compositor.paint()`. This is correct. However, if the Compositor's `painter.drawImage()` uses the default `CompositionMode_SourceOver` and the widget frame contains partially transparent pixels (alpha < 255) at some edges due to antialiased text, those pixels blend with the background correctly on the first paint. On subsequent paints, if the background fill does not cover the entire window each time, stale pixel content can persist at the edges of widget frames.
+
+**Why it happens:**
+Qt's `paintEvent` is not guaranteed to clear the widget's backing store before calling the handler. If `Qt::WA_OpaquePaintEvent` is not set and the widget does not fill its entire rect, leftover pixels from previous frames remain. The background `fillRect(self.rect(), bg)` must be the first operation and must cover the full window rect every time.
+
+**How to avoid:**
+Ensure the background fill always covers the full rect, every paint:
+```python
+def paintEvent(self, event):
+    painter = QPainter(self)
+    # Always fill full rect first, not just event.rect()
+    painter.fillRect(self.rect(), QColor(self._bg_color))
+    self.compositor.paint(painter)
+    painter.end()
+```
+Do not optimize to `event.rect()` (the dirty rect) for the background fill — the background must always be complete to prevent bleed-through from previous frames. The compositor's widget frame drawing can restrict to the slot rect, but the background must be full-window.
+
+**Warning signs:**
+- Faint ghost of previous widget content visible at slot edges after bg_color changes
+- Widget antialiased text edges show artifacts when bg_color is changed to a contrasting color
+- Artifacts appear only after the first color change, not at startup
+
+**Phase to address:** v1.2 Phase 1 — Background ownership migration. Add `WA_OpaquePaintEvent` to the host window and always fill `self.rect()` (not `event.rect()`) as the first operation in `paintEvent`.
+
+---
+
+### Pitfall 23: `config.json` Missing Top-Level `bg_color` Key — Existing Configs Without the Key Crash on Upgrade
+
+**Severity:** HIGH
+
+**What goes wrong:**
+The host's `paintEvent` is updated to read `bg_color` from config: `self._bg_color = config["bg_color"]`. An existing `config.json` from v1.1 does not have this key. When the host loads this config on upgrade, it raises `KeyError: 'bg_color'` and fails to start, or `paintEvent` raises `KeyError` on the first paint and crashes the host. The user is left with a broken bar that worked fine before upgrading.
+
+**Why it happens:**
+Adding a new required top-level config key without a default-fallback is a breaking config schema change. The config has no versioning field. The control panel writes complete configs when the user saves, but existing config files on disk will not be updated until the user opens the control panel and saves.
+
+**How to avoid:**
+Always use `.get()` with the exact hardcoded default that matches the prior behavior:
+```python
+# In host, when reading bg_color
+self._bg_color = config.get("bg_color", "#000000")  # default matches prior paintEvent fill
+```
+The default `"#000000"` is identical to the `QColor("#000000")` that the current `paintEvent` hardcodes. This guarantees zero visual change on upgrade even if the user never opens the control panel.
+
+Apply the same pattern to all new widget-level color keys:
+```python
+# In CalendarWidget.__init__, reading new time_color
+settings = config.get("settings", {})
+self._time_color = _parse_color(settings.get("time_color", "#ffffff"))  # matches hardcoded (255,255,255,255)
+self._date_color = _parse_color(settings.get("date_color", "#dcdcdc"))  # matches hardcoded (220,220,220,255)
+```
+**Do not** use `config["bg_color"]` — bracket access for any key that may be absent in an existing config.
+
+**Warning signs:**
+- Host fails to start after adding a new config key, but works fine when config.json is deleted and recreated
+- `KeyError` in host logs at startup or in `paintEvent`
+- Unit test: load a v1.1 config (without new keys) into the new host — host must start and display correctly
+
+**Phase to address:** v1.2 Phase 1 — Background ownership migration. Establish the `.get()` with exact defaults pattern as a non-negotiable rule before writing any config-reading code for new color keys.
+
+---
+
+### Pitfall 24: Default Colors Must Exactly Match Hardcoded Values — Off-by-One Causes Visible Change on Upgrade
+
+**Severity:** MEDIUM
+
+**What goes wrong:**
+The developer sets `bg_color` default to `"#1a1a1a"` in the new config code, but the prior `paintEvent` hardcoded `QColor("#000000")` (pure black). Or: calendar widget's `time_color` default is set to `(255, 255, 255, 255)` but the prior `_text_color` used for dates was actually `(220, 220, 220, 255)` and the developer confused the two. Any mismatch causes a perceptible color change when the user upgrades without ever touching the color settings.
+
+The existing code has:
+- `HostWindow.paintEvent`: `QColor("#000000")` — background
+- `CalendarWidget._bg_color`: `(26, 26, 46, 255)` — `#1a1a2e`
+- `CalendarWidget._text_color`: `(220, 220, 220, 255)` — date text
+- `CalendarWidget._time_color`: `(255, 255, 255, 255)` — time text
+- `PomodoroWidget._bg_color`: `(26, 26, 46, 255)` — `#1a1a2e`
+- `PomodoroWidget._work_color`: `"#ff4444"` (from config default, not hardcoded in `__init__`)
+
+**Why it happens:**
+The developer copies defaults from memory or from the spec rather than from the actual code. Widget backgrounds are `#1a1a2e` but the host background is `#000000` — these are different colors. If the widget background ownership moves to the host but the default is set to `#1a1a2e` rather than `#000000`, the bar background color changes from black to dark blue-black on upgrade.
+
+**How to avoid:**
+Before writing any default value, read the exact value from the source code:
+```
+Host paintEvent:       #000000  → bg_color default
+CalendarWidget bg:     #1a1a2e  → this moves to transparent; host bg_color controls the bar
+CalendarWidget time:   #ffffff  → time_color default
+CalendarWidget date:   #dcdcdc  → date_color default
+PomodoroWidget bg:     #1a1a2e  → same; moves to transparent
+PomodoroWidget label:  #c8c8c8  → (200,200,200,255); not configurable in v1.2
+```
+
+Note: widgets currently render their own `bg_color` fill (`#1a1a2e` dark blue). This is the color users see as the "background." The host's `#000000` fill only shows in gaps between widgets. When background ownership moves to host, the correct default for `bg_color` is `#1a1a2e` (the widget bg color), not `#000000`. The black host fill was always hidden under the widget fills.
+
+**Warning signs:**
+- The bar looks slightly different after upgrading before the user changes anything
+- A specific region of the bar changes color on upgrade
+- Regression test: render the bar with new code + default config; pixel-diff against v1.1 render — diff should be zero
+
+**Phase to address:** v1.2 Phase 1 — Background ownership migration. Audit every color value in the existing code and produce an exact defaults table before writing a single line of new color-handling code.
+
+---
+
+### Pitfall 25: ColorPickerWidget `update()` Not Called After Slider Value Changes — Swatch Does Not Repaint
+
+**Severity:** MEDIUM
+
+**What goes wrong:**
+The color swatch in `ColorPickerWidget` is a QWidget subclass with a custom `paintEvent`. The developer connects the slider's `valueChanged` signal to a method that updates the internal color state but forgets to call `self._swatch.update()` (or `self.update()` if the swatch is the widget itself). The swatch shows the initial color and never changes as the user moves the sliders, even though the internal state is being updated correctly.
+
+**Why it happens:**
+Qt does not repaint custom widgets automatically when internal data changes — only when the widget's backing store is invalidated via `update()` or `repaint()`. The `paintEvent` is only called when Qt determines the widget needs repainting (e.g., resize, expose, explicit `update()` call). A slot that changes `self._color` and returns without calling `update()` will leave the swatch visually stale.
+
+**How to avoid:**
+Always call `self.update()` at the end of any slot that modifies visible state:
+```python
+def _on_slider_changed(self) -> None:
+    hue = self._hue_slider.value() / 359.0
+    intensity = self._intensity_slider.value() / 100.0
+    self._current_color = _hsl_to_qcolor(hue, intensity)
+    self._swatch.update()  # schedule repaint of the swatch widget
+    self.colorChanged.emit(self._current_color.name())
+```
+Use `update()` (deferred, coalesced by Qt) not `repaint()` (immediate, bypasses coalescing). Using `repaint()` in a tight signal loop causes excessive repaints.
+
+**Warning signs:**
+- Moving sliders emits the `colorChanged` signal (verifiable with a print) but swatch stays the same color
+- Swatch updates only when the window is resized or another window overlaps it
+- `paintEvent` on the swatch is called 0 times after slider moves (add a counter to verify)
+
+**Phase to address:** v1.2 Phase 1 — ColorPickerWidget. Include a smoke test: connect slider, move it, verify swatch shows new color without triggering any external repaint.
+
+---
+
+### Pitfall 26: Hex Input Field and Sliders Out of Sync — One Path Updates, Other Doesn't
+
+**Severity:** MEDIUM
+
+**What goes wrong:**
+`ColorPickerWidget` has two input paths: sliders and a hex QLineEdit. If the developer only connects `_on_slider_changed → update hex field` and `_on_hex_changed → update sliders`, but forgets to re-update the swatch after a hex change, the swatch stays at the slider color. Or: the hex → slider update path uses `setValue()` which triggers `valueChanged`, which triggers `_on_slider_changed`, which overwrites the hex field again, causing an infinite signal loop.
+
+**Why it happens:**
+Two-way bindings between sliders and a text field require careful signal blocking. Qt's `blockSignals(True)` pattern exists for this reason but is easy to forget. Without it, changing the hex field calls a slot that sets slider values, which emit `valueChanged`, which call `_on_slider_changed`, which update the hex field, and so on.
+
+**How to avoid:**
+Use `blockSignals()` when programmatically updating a widget to break the feedback loop:
+```python
+def _set_sliders_from_color(self, color: QColor) -> None:
+    """Update sliders from a color value without triggering recursive signals."""
+    self._hue_slider.blockSignals(True)
+    self._intensity_slider.blockSignals(True)
+    hue = color.hslHueF()
+    if hue >= 0.0:
+        self._hue_slider.setValue(round(hue * 359))
+    self._intensity_slider.setValue(round(color.lightnessF() * 100))
+    self._hue_slider.blockSignals(False)
+    self._intensity_slider.blockSignals(False)
+    self._swatch.update()
+```
+Apply `blockSignals()` symmetrically: when hex updates sliders, block slider signals; when sliders update hex, block hex textChanged signal.
+
+**Warning signs:**
+- RecursionError or rapid infinite loop on any slider movement
+- Typing a hex value causes the sliders to flicker repeatedly
+- Hex field value reverts to a previous value after typing
+
+**Phase to address:** v1.2 Phase 1 — ColorPickerWidget. Test hex→slider and slider→hex update paths explicitly; verify no signal loop with a counter on each slot.
+
+---
+
+### Pitfall 27: Hot-Reload Delivers `bg_color` Only to Host — But Host Does Not Read It From `ConfigUpdateMessage`
+
+**Severity:** HIGH
+
+**What goes wrong:**
+The existing hot-reload reconcile path in `ConfigLoader._reconcile()` sends `ConfigUpdateMessage` only to widget processes for changed widget configs. Top-level config keys like `bg_color` are not forwarded to any widget. The host itself is not a widget and has no in_queue. When the user changes `bg_color` in the control panel and saves, the config is hot-reloaded, widget configs are reconciled, but the host's `_bg_color` attribute is never updated. The bar continues showing the old background color until the host is restarted.
+
+**Why it happens:**
+The current reconcile logic only processes `config["widgets"]`, not top-level keys. The host compositor reads config at startup via `ConfigLoader.load()` and then reacts to widget-level changes via `_reconcile()`. There is no mechanism for the host to be notified of top-level config changes. Adding `after_reload` callback exists but is currently used only for `reapply_clip` — it is not used to push new config values to the host window.
+
+**How to avoid:**
+Use the existing `after_reload` callback in `ConfigLoader` to deliver updated top-level config to the host window:
+```python
+# In host/main.py
+def on_config_reload():
+    new_cfg = config_loader.current_config
+    window.apply_host_config(new_cfg)  # updates bg_color, etc.
+    reapply_clip()
+
+config_loader = ConfigLoader(str(_cfg), pm, window.compositor, after_reload=on_config_reload)
+```
+```python
+# In host/window.py
+def apply_host_config(self, config: dict) -> None:
+    self._bg_color = config.get("bg_color", "#1a1a2e")
+    self.update()  # schedule repaint with new background color
+```
+
+**Warning signs:**
+- Changing `bg_color` in control panel and saving has no visible effect on the bar
+- Restarting the host after a `bg_color` change shows the new color (confirms config is saved correctly, but live reload is broken)
+- Widget configs update live but `bg_color` does not
+
+**Phase to address:** v1.2 Phase 1 — Background ownership migration. Wire the `after_reload` callback to call `window.apply_host_config()` in the same phase that adds `bg_color` reading to the host.
+
+---
+
+### Pitfall 28: PyInstaller-Packaged Control Panel Does Not Include New ColorPickerWidget Module
+
+**Severity:** MEDIUM
+
+**What goes wrong:**
+`ColorPickerWidget` is added as `control_panel/color_picker.py`. The PyInstaller spec for the control panel does not explicitly list this new module. If the module is imported at the top level of `main_window.py`, PyInstaller's static analysis picks it up. However, if it is imported inside a method (deferred import) or conditionally, the static analysis misses it and the built `.exe` fails with `ModuleNotFoundError: No module named 'control_panel.color_picker'`.
+
+**Why it happens:**
+PyInstaller relies on static import analysis. Deferred imports inside methods or conditional imports based on runtime state are not traced. Adding a new module to the `control_panel` package is safe if the import is at module level, but risky if it is inside `_build_pomodoro_tab()` or similar.
+
+**How to avoid:**
+Always import `ColorPickerWidget` at the top of `main_window.py`, not inside `_build_*_tab()` methods:
+```python
+# control_panel/main_window.py — TOP of file
+from control_panel.color_picker import ColorPickerWidget
+```
+After any packaging change, run the full end-to-end smoke test on the built `.exe`: open the Pomodoro tab, verify the color pickers appear, change a color, save, verify the host reflects the change. Do not ship without this test.
+
+**Warning signs:**
+- Control panel `.exe` crashes when opening the Pomodoro or Calendar tab
+- Error log shows `ModuleNotFoundError` for `color_picker`
+- Works in development (`python -m control_panel`) but fails in built `.exe`
+
+**Phase to address:** v1.2 Phase 3 — Control panel integration + packaging rebuild. Rebuild the `.exe` after adding ColorPickerWidget and run the smoke test before marking the phase complete.
+
+---
+
 ## Technical Debt Patterns
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
@@ -607,6 +1015,9 @@ Current widget processes (pomodoro, calendar, notification) use Pillow and winrt
 | Use registry Run key for autostart instead of Task Scheduler | One `winreg` call; no schtasks dependency | No "Start In" support; no elevation path; cwd is system-defined at login | Never for this project — Task Scheduler is the correct mechanism |
 | Use `--onefile` PyInstaller build | Single distributable file | AV quarantine risk; slow startup; complex multiprocessing temp-path issues | Never for this project — `--onedir` is strictly better for single-user desktop tools |
 | Relative path `"config.json"` in frozen exe | Works in development | Config not found when launched from Task Scheduler or non-project-root directory | Never in production — use `_exe_dir()` pattern from v1.1 onward |
+| Call `colorsys.hls_to_rgb()` at inline call sites with positional args | Saves a wrapper function | H-L-S vs H-S-L confusion causes silent wrong colors; impossible to catch without unit tests | Never — always use a named wrapper |
+| Set new config key defaults to "sensible" values instead of exact prior hardcoded values | Easier to reason about | Visible color change on upgrade for users who never opened the settings panel | Never — always match the exact prior hardcoded value byte-for-byte |
+| Read `config["bg_color"]` with bracket access | Slightly less typing | KeyError crash on any existing config.json that predates the key | Never — always use `.get()` with the exact default |
 
 ---
 
@@ -626,6 +1037,12 @@ Current widget processes (pomodoro, calendar, notification) use Pillow and winrt
 | PyInstaller + winrt namespace packages | Deferred imports not traced by static analysis | Move winrt imports to module level OR use `collect_submodules("winrt")` + `collect_dynamic_libs("winrt")` in `.spec` |
 | Task Scheduler autostart + GUI | "Run whether user is logged on or not" makes window invisible | Always use "Run only when user is logged on" for any task that creates visible windows |
 | Task Scheduler autostart + cwd | Relying on cwd being the project/exe directory | Set `Start In` in task AND use `_exe_dir()` pattern in code — belt-and-suspenders |
+| `colorsys.hls_to_rgb` + CSS HSL convention | Passing saturation as second argument (HSL order) | Always use a wrapper that takes `(hue, saturation, lightness)` and calls `hls_to_rgb(h, l, s)` internally |
+| `colorsys` + QSlider integer values | Passing QSlider int (0–359) directly to colorsys | Normalize at the boundary: `hue / 359.0` before passing to colorsys |
+| `bg_color` hot-reload | New top-level config key not delivered to host window | Wire `after_reload` callback to call `window.apply_host_config(current_config)` |
+| Widget transparent background + host fill | Widget still renders opaque background after BG-01 migration | Make widget background switch and host color fill atomic; test with widget stopped and running |
+| `QColor.hslHueF()` for gray | Returns -1 for achromatic colors; breaks slider restore | Track hue separately; only update from `hslHueF()` when result is >= 0 |
+| New `control_panel/color_picker.py` + PyInstaller | Deferred import misses the module | Import `ColorPickerWidget` at top of `main_window.py`; rebuild `.exe` and smoke test the tab |
 
 ---
 
@@ -638,6 +1055,7 @@ Current widget processes (pomodoro, calendar, notification) use Pillow and winrt
 | Queue drain iterating all queues even if idle | Minor CPU spin at 50 ms even when no widget has new data | Add per-widget `dirty` flag; skip `get_nowait()` loop if flag is clear | Becomes measurable at 8+ widgets; at 4 widgets it is negligible |
 | `process.is_alive()` polling in a tight loop for crash detection | CPU overhead; timer interference | Check `is_alive()` inside the QueueDrainTimer tick (50 ms); do not create a separate polling loop | Not a scaling issue — a design issue |
 | `--onefile` PyInstaller build temp-extraction delay | 2–10 second startup delay at every login | Use `--onedir`; no extraction step at runtime | Every launch — not a scale issue; a design issue |
+| ColorPickerWidget `valueChanged` emitting per-pixel drag | Saves config on every slider tick; triggers full hot-reload on every drag tick | Debounce: only emit `colorChanged` and write config on `sliderReleased`, not `valueChanged` | Not a scale issue — a design issue; immediate at any usage |
 
 ---
 
@@ -678,6 +1096,14 @@ These issues are Windows-only and distinct from general Python pitfalls.
 - [ ] **winrt in frozen exe:** Notification widget subprocess starts and polls WinRT without `ModuleNotFoundError` — verified in built `.exe`.
 - [ ] **Task Scheduler interactive session:** Autostart task uses "Run only when user is logged on" — verified by logging out and back in, confirming host window appears on Display 3.
 - [ ] **Task Scheduler cwd:** `config.json` is found and loaded when host is launched by Task Scheduler (not manually launched from project directory).
+- [ ] **Zero visual change on upgrade:** Load a v1.1 config.json (no new color keys) with the v1.2 host and control panel — bar must look identical to v1.1.
+- [ ] **bg_color hot-reload:** Change `bg_color` in control panel, save — bar background updates immediately without restarting the host.
+- [ ] **Widget transparent background:** After BG-01 migration, widget renders on transparent background — verify by stopping all widgets and confirming only the host bg_color is visible.
+- [ ] **Invalid hex fallback:** Enter `"#gg0000"` in a color field, save — widget continues running (does not crash), shows fallback color.
+- [ ] **ColorPickerWidget swatch updates:** Move hue slider — swatch color changes immediately with no repaint trigger needed.
+- [ ] **Achromatic hue preservation:** In ColorPickerWidget: set hue to cyan, drag saturation to 0 (gray), drag saturation back up — hue returns to cyan, not to red.
+- [ ] **HLS argument order unit test:** `hsl_to_rgb_wrapper(0.0, 1.0, 0.5)` returns `(255, 0, 0)` — pure red.
+- [ ] **PyInstaller control panel smoke test after rebuild:** Open Pomodoro tab in built `.exe` — ColorPickerWidget appears; open Calendar tab — color pickers appear. No `ModuleNotFoundError`.
 
 ---
 
@@ -699,6 +1125,12 @@ These issues are Windows-only and distinct from general Python pitfalls.
 | pywin32 DLLs missing in frozen exe | MEDIUM — spec file edit + rebuild | Add `collect_dynamic_libs("win32")` to spec; verify `pywin32-ctypes` installed; rebuild |
 | winrt submodules missing in frozen exe | MEDIUM — spec file + possible code restructure | Add `collect_submodules("winrt")` + `collect_dynamic_libs("winrt")` to spec; move deferred imports to module level; rebuild |
 | Task Scheduler window invisible (Session 0) | LOW — task reconfiguration | Delete and recreate task with "Run only when user is logged on"; test by actual logoff/login cycle |
+| HLS argument order swap (colorsys) | LOW — code fix + unit test | Add wrapper function with correct HSL ordering; add unit test with known values; fix call sites |
+| colorsys receives out-of-range QSlider int | LOW — add normalization | Add division at the boundary where slider values enter color math; add range assertions |
+| Widget subprocess crashes on bad hex color | LOW — add safe fallback | Add `_safe_hex_color()` guard in `_apply_config()`; validate in control panel UI layer too |
+| bg_color not updating on hot-reload | LOW — wire after_reload callback | Add `window.apply_host_config()` call in the `after_reload` lambda; test by changing bg_color and saving |
+| Visible color change on upgrade (wrong defaults) | MEDIUM — requires audit + rebuild | Audit all hardcoded color values in existing code; reset defaults to exact matches; rebuild and test with v1.1 config |
+| ColorPickerWidget module missing from frozen exe | LOW — import fix + rebuild | Move import to module level; rebuild control panel `.exe`; smoke test all tabs |
 
 ---
 
@@ -723,6 +1155,18 @@ These issues are Windows-only and distinct from general Python pitfalls.
 | Task Scheduler Session 0 (invisible window) | v1.1 Phase 2: Autostart implementation | Full logoff/login cycle; confirm window appears on Display 3 |
 | Task Scheduler cwd wrong | v1.1 Phase 2: Autostart implementation | Confirm config loads from Task Scheduler launch (not manual launch) |
 | Registry Run key vs Task Scheduler choice | v1.1 Phase 2: Autostart implementation | Document in phase spec; use Task Scheduler exclusively |
+| HLS argument order swap | v1.2 Phase 1: ColorPickerWidget | Unit test: `hsl_to_rgb(0.0, 1.0, 0.5)` == `(255, 0, 0)` |
+| colorsys out-of-range QSlider int | v1.2 Phase 1: ColorPickerWidget | Unit test: slider value 0..359 normalized before colorsys call |
+| Widget subprocess crashes on bad hex | v1.2 Phase 2: Pomodoro color integration | Enter invalid hex in control panel; confirm widget does not crash |
+| bg_color ownership transfer — double fill | v1.2 Phase 1: Background migration | Stop all widgets; confirm bar shows host bg_color only |
+| Transparent widget bleeds previous frame | v1.2 Phase 1: Background migration | Change bg_color; confirm no ghost artifacts at widget edges |
+| Missing `bg_color` key on old config | v1.2 Phase 1: Background migration | Load v1.1 config.json; confirm host starts without KeyError |
+| Wrong default colors cause visual change | v1.2 Phase 1: Background migration | Pixel-diff v1.2 default render vs v1.1 render; diff must be zero |
+| bg_color not hot-reloaded | v1.2 Phase 1: Background migration | Change bg_color in control panel; confirm bar updates live |
+| QColor achromatic hue -1 | v1.2 Phase 1: ColorPickerWidget | Round-trip gray through ColorPickerWidget; restore saturation; hue preserved |
+| Swatch not repainted after slider change | v1.2 Phase 1: ColorPickerWidget | Move slider; verify swatch color changes without external repaint |
+| Signal loop in two-way hex/slider binding | v1.2 Phase 1: ColorPickerWidget | Type hex value; confirm no recursion and sliders update once |
+| ColorPickerWidget missing from frozen exe | v1.2 Phase 3: Control panel rebuild | Open Pomodoro/Calendar tabs in built `.exe`; confirm pickers render |
 
 ---
 
@@ -758,8 +1202,19 @@ These issues are Windows-only and distinct from general Python pitfalls.
 - [pythonguis.com — Packaging PyQt6 applications with PyInstaller](https://www.pythonguis.com/tutorials/packaging-pyqt6-applications-windows-pyinstaller/) — data files, console=False, hidden imports warnings — MEDIUM confidence
 - [pyinstaller-hooks-contrib — PyPI](https://pypi.org/project/pyinstaller-hooks-contrib/) — community hooks status for pywin32 and other packages — MEDIUM confidence
 
+**v1.2 Sources (HIGH/MEDIUM confidence):**
+- [Python Docs — colorsys module](https://docs.python.org/3/library/colorsys.html) — HLS argument order `hls_to_rgb(h, l, s)`; all values 0.0–1.0; no input validation — HIGH confidence
+- [Qt Docs — QColor::fromHslF](https://doc.qt.io/qt-6/qcolor.html#fromHslF) — hue -1 for achromatic colors; hue normalization for out-of-range values — HIGH confidence
+- [Qt Docs — QColor](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QColor.html) — HSL vs HSV distinction; hslHueF() returns -1 for achromatic — HIGH confidence
+- [Pillow Docs — ImageColor module](https://pillow.readthedocs.io/en/stable/reference/ImageColor.html) — getrgb() raises ValueError on invalid color string — HIGH confidence
+- [Qt Docs — QWidget::update()](https://doc.qt.io/qt-6/qwidget.html#update) — schedule repaint; does not force immediate repaint; use instead of repaint() — HIGH confidence
+- [Qt Forum — fillRect with transparency leaves artifacts](https://forum.qt.io/topic/115051/why-does-qpainter-fillrect-with-transparency-leave-artifacts) — CompositionMode_Source vs SourceOver behavior — MEDIUM confidence
+- [Qt Docs — QAbstractSlider](https://doc.qt.io/qt-6/qabstractslider.html) — valueChanged emits during drag if tracking enabled; sliderReleased for end-of-drag — HIGH confidence
+- [Qt Docs — QWidget painting](https://doc.qt.io/qt-6/qwidget.html#paintEvent) — paintEvent only called on update() or repaint(); does not auto-fire on data change — HIGH confidence
+
 ---
 
 *Pitfalls research for: MonitorControl — Python/PyQt6 widget bar, Windows, 1920x515 dedicated display*
 *v1.0 researched: 2026-03-26*
 *v1.1 supplement researched: 2026-03-27 (PyInstaller packaging + Windows autostart)*
+*v1.2 supplement researched: 2026-03-27 (configurable color system)*

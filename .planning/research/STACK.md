@@ -2,19 +2,22 @@
 
 **Domain:** Python desktop widget/dashboard framework — Windows, dedicated secondary display
 **Researched:** 2026-03-27
-**Confidence:** HIGH (packaging), HIGH (autostart mechanism), MEDIUM (winrt bundling hooks)
+**Confidence:** HIGH (all APIs verified against official Qt6 documentation and PyQt6 source)
 
 ---
 
 ## Scope
 
-This file covers ONLY the new stack additions needed for v1.1. The existing validated stack
-(PyQt6 6.10.2, Pillow, pywin32 311, winrt-* 3.2.1, multiprocessing.Queue, config.json
-hot-reload) is not re-researched here.
+This file covers ONLY the new stack capabilities needed for v1.2 configurable colors. The existing
+validated stack (PyQt6 6.10.2, Pillow, pywin32 311, winrt-* 3.2.1, multiprocessing.Queue,
+config.json hot-reload, PyInstaller 6.19.0) is not re-researched.
 
-The two new capabilities are:
-1. Host autostart at Windows login (no terminal window)
-2. Control panel packaged as a standalone .exe (no Python environment required)
+The new capabilities required are:
+1. Hue/intensity sliders with visible gradient groove (not plain grey bars)
+2. Live color swatch (a painted rectangle that updates in real time)
+3. Hex input field with `#RRGGBB` validation
+4. HSL-to-RGB conversion for the slider model → hex → config pipeline
+5. Host background fill driven by a `bg_color` string from config
 
 ---
 
@@ -22,200 +25,193 @@ The two new capabilities are:
 
 ### New Core Technologies
 
+No new packages are needed. All v1.2 color capabilities are covered by PyQt6 6.10.2 and
+Python's stdlib `colorsys`.
+
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| PyInstaller | 6.19.0 | Package control_panel into standalone .exe | Defacto standard for Python .exe distribution. Has explicit PyQt6 hooks in pyinstaller-hooks-contrib. Works out-of-the-box with PyQt6 — no spec-file customization needed for a pure PyQt6+pywin32 app. Does not require a C toolchain. Latest release Feb 14 2026 confirms active maintenance. |
-| winreg (stdlib) | built-in | Read/write HKCU Run key for autostart | Already available — no new install. Python's built-in `winreg` module provides direct access to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Zero new dependencies. Simpler and more predictable than win32com.client for this single-purpose task. |
+| `colorsys` (stdlib) | built-in (Python 3.x) | HSL-to-RGB and RGB-to-HSL conversion | Already identified in milestone context. Provides `hls_to_rgb(h, l, s)` and `rgb_to_hls(r, g, b)` — all floats in [0.0, 1.0]. No external dependency. Sufficient for slider model → QColor conversion; no precision issues at 8-bit display depth. |
+| PyQt6 — `QSlider` | 6.10.2 (already installed) | Hue and intensity slider controls | Inherits from `QAbstractSlider`. Provides `valueChanged` signal, `setRange()`, `setValue()`, `value()`, horizontal/vertical orientation. Styling the gradient groove requires a stylesheet override on the `::groove:horizontal` subcontrol — see patterns below. |
+| PyQt6 — `QColor` | 6.10.2 (already installed) | Color construction from HSV/HSL and hex round-trip | `QColor.fromHslF(h, s, l)` constructs from float HSL. `QColor.name()` returns `#RRGGBB`. `QColor.isValidColorName(s)` validates a hex string without constructing an object. Used in the swatch painter and for writing clean hex to config.json. |
+| PyQt6 — `QPainter` / `QLinearGradient` | 6.10.2 (already installed) | Gradient groove background for sliders; live swatch fill | `QLinearGradient` with `setColorAt()` stops draws the hue spectrum or grey-to-color intensity ramp. `painter.fillRect(self.rect(), gradient_brush)` paints the swatch. Already used in host `compositor.py` — same pattern. |
+| PyQt6 — `QRegularExpressionValidator` | 6.10.2 (already installed) | Constrain hex input field to `#RRGGBB` pattern | In PyQt6 `QRegularExpressionValidator` lives in `QtGui`; `QRegularExpression` lives in `QtCore`. This split is a Qt6 change — in Qt5 both were in `QtGui`. Use `QRegularExpression` from `QtCore` to construct the pattern and pass it to `QRegularExpressionValidator`. |
 
 ### Supporting Libraries
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| pyinstaller-hooks-contrib | auto (bundled with PyInstaller) | Community hooks that tell PyInstaller what to collect for PyQt6, pywin32, and other packages | Automatically installed as a PyInstaller dependency; no explicit install needed. Provides the PyQt6 hook that handles Qt plugin DLLs and platform plugins. |
-
-### Development Tools
-
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| PyInstaller CLI | Build the standalone .exe | `pyinstaller --onedir --noconsole --name MonitorControlPanel control_panel/__main__.py` |
-| pyi-makespec | Generate a .spec file for custom build configuration | Use if hidden imports for winrt packages need to be specified manually |
+None needed. All rendering, input validation, and color math is covered by PyQt6 + stdlib.
 
 ---
 
 ## Installation
 
-```bash
-# Packaging tool (build-time only, not shipped with users)
-pip install pyinstaller==6.19.0
+No new packages. All capabilities come from the existing install:
 
-# winreg is stdlib — no install needed
+```bash
+# Already installed — no changes to requirements.txt
+PyQt6==6.10.2
+# colorsys is stdlib — no install needed
 ```
 
 ---
 
-## Autostart Mechanism: HKCU Run Key (Recommended)
+## Key Patterns
 
-**Use `winreg` to set `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.**
+### Pattern 1: QSlider with gradient groove via stylesheet
 
-### Why HKCU Run Key over Task Scheduler
+Subclassing `QSlider` and overriding `paintEvent()` does not work reliably — the style system
+draws over custom painting. The correct approach is a `QWidget` subclass that:
 
-| Criterion | HKCU Run Key | Task Scheduler |
-|-----------|-------------|----------------|
-| Requires admin rights | No — HKCU is user-writable | No for logon trigger; Yes for some settings |
-| Console window suppression | Trivial: point entry at pythonw.exe | Requires "Run whether user is logged on or not" / window-station config |
-| Implementation complexity | ~15 lines of stdlib winreg | ~60+ lines of win32com.client COM automation |
-| User can toggle in Settings | Yes — Windows Settings > Apps > Startup shows Run-key entries | Partially — Task Scheduler UI only, not in Settings |
-| Dependencies needed | None (stdlib winreg) | win32com.client (already have via pywin32, but more fragile API) |
-| Reliability | High for user-session apps | High; preferred for system-level or scheduled tasks |
-| Windows Settings visibility | Windows 11 Startup apps page shows Run-key entries | Does not appear in Startup apps page |
+1. Paints the gradient groove background in `paintEvent()` on the widget itself (not on the slider)
+2. Overlays a transparent `QSlider` child positioned exactly over the groove
 
-**Verdict:** HKCU Run key is the correct choice for a user-session desktop app. It requires no admin elevation, suppresses the console window by pointing at `pythonw.exe`, appears in Windows Settings Startup apps (familiar UX), and needs only stdlib `winreg`. Task Scheduler adds complexity with no benefit for this use case.
-
-### No-Console Launch Pattern
-
-To launch the host without a terminal window, the Run key value must point to `pythonw.exe` (not `python.exe`). `pythonw.exe` is the Windows subsystem variant that starts with `CREATE_NO_WINDOW` — no console is ever created.
-
-```
-HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-"MonitorControl" = "C:\path\to\pythonw.exe C:\path\to\project\host\main.py"
-```
-
-The control panel uses `winreg` to write/delete this entry based on the autostart toggle. The host path should be resolved at toggle-time using `sys.executable` (which resolves to the active Python interpreter) and `__file__`.
-
-### winreg Implementation Pattern
+The child QSlider is styled to have a transparent groove and a visible handle only:
 
 ```python
-import winreg
-import sys
-from pathlib import Path
+from PyQt6.QtWidgets import QWidget, QSlider
+from PyQt6.QtGui import QPainter, QLinearGradient, QColor, QBrush
+from PyQt6.QtCore import Qt, QRect, pyqtSignal
 
-APP_NAME = "MonitorControl"
-RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+class HueSlider(QWidget):
+    """QWidget that paints a hue-spectrum groove with a QSlider overlay for the handle."""
+    hue_changed = pyqtSignal(float)  # 0.0..1.0
 
-def _pythonw_exe() -> str:
-    # sys.executable is python.exe; pythonw.exe lives alongside it
-    return str(Path(sys.executable).parent / "pythonw.exe")
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(28)
+        self._slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._slider.setRange(0, 359)
+        self._slider.setStyleSheet("""
+            QSlider::groove:horizontal { background: transparent; height: 16px; }
+            QSlider::handle:horizontal {
+                background: white;
+                border: 1px solid #555;
+                width: 12px;
+                margin: -4px 0;
+                border-radius: 6px;
+            }
+        """)
+        self._slider.valueChanged.connect(
+            lambda v: self.hue_changed.emit(v / 359.0)
+        )
 
-def enable_autostart(host_main: Path) -> None:
-    value = f'"{_pythonw_exe()}" "{host_main}"'
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0,
-                        winreg.KEY_SET_VALUE) as key:
-        winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, value)
+    def resizeEvent(self, event):
+        self._slider.setGeometry(self.rect())
 
-def disable_autostart() -> None:
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0,
-                            winreg.KEY_SET_VALUE) as key:
-            winreg.DeleteValue(key, APP_NAME)
-    except FileNotFoundError:
-        pass  # already absent
-
-def is_autostart_enabled() -> bool:
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-            winreg.QueryValueEx(key, APP_NAME)
-            return True
-    except FileNotFoundError:
-        return False
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        groove = QRect(0, (self.height() - 16) // 2, self.width(), 16)
+        grad = QLinearGradient(groove.topLeft(), groove.topRight())
+        for stop in range(7):
+            grad.setColorAt(stop / 6.0, QColor.fromHsvF(stop / 6.0, 1.0, 1.0))
+        painter.fillRect(groove, QBrush(grad))
+        painter.end()
 ```
 
----
+The same structure applies for the intensity slider — replace the gradient stops with a ramp from
+black → the current hue's full saturation color.
 
-## Packaging: PyInstaller for Control Panel .exe
+**Critical gotcha:** Always use `self.rect()` (not `event.rect()`) when painting the full widget
+background. `event.rect()` is only the dirty region and will leave unpainted gaps at certain
+widget sizes on Windows. This bug was confirmed in the Qt Forum
+(`pyqt6-windows-os-custom-paintevent-doesn-t-fill-the-whole-widget-background-in-some-size`).
 
-### Why PyInstaller Over Alternatives
+### Pattern 2: Live color swatch
 
-| Tool | Status | Why Not |
-|------|--------|---------|
-| PyInstaller 6.19.0 | Actively maintained, released Feb 2026 | Recommended |
-| cx_Freeze 8.6.0 | Actively maintained (Feb 2026 release) | More manual spec configuration needed; hook ecosystem smaller than PyInstaller-hooks-contrib; PyInstaller is the community standard for PyQt apps |
-| Nuitka | Actively maintained, compiles to C++ | Requires MSVC or MinGW C toolchain; longer build times; overkill for a personal tool where startup performance is not critical; False-positive improvement is irrelevant for internal distribution |
-| PyOxidizer | Last release Dec 2022 | Effectively unmaintained; use only if single-binary Rust embedding is a hard requirement |
-
-### PyInstaller + PyQt6 Integration
-
-PyInstaller 6.x ships with `pyinstaller-hooks-contrib`, which provides the PyQt6 hook. This hook automatically:
-- Collects Qt platform plugins (`platforms/qwindows.dll`)
-- Collects Qt6 DLLs (Core, Gui, Widgets)
-- Handles the `PyQt6.sip` module
-
-No `--hidden-import PyQt6` or `collect_submodules` is needed for standard PyQt6 usage.
-
-### pywin32 Bundling Note
-
-pyinstaller-hooks-contrib includes a pywin32 runtime hook that manages `pywin32_system32` DLL placement. A known issue exists where the pywin32 runtime hook modifies PATH in a way that conflicts with Qt's OpenSSL DLL resolution (fixed in PyInstaller 6.x for the `pywin32_system32` subdirectory interaction — see changelog). If Qt SSL errors appear in the packaged .exe, the fix is using PyInstaller >= 6.5.0.
-
-The control panel does NOT use pywin32 (`winreg` is stdlib). This means the pywin32 hook interaction is not a concern for the control panel .exe.
-
-### winrt Bundling
-
-No hook for `winrt-*` packages exists in `pyinstaller-hooks-contrib`. However, the **control panel does not use winrt**. winrt is only used by the host's notification widget subprocess. The control panel only uses PyQt6 + stdlib (json, winreg, os, pathlib). No winrt hidden imports are needed for the control panel build.
-
-If the host were ever packaged (not in scope for v1.1), winrt bundling would require a custom hook or `--collect-all winrt` flags and testing.
-
-### multiprocessing and freeze_support
-
-The control panel (`control_panel/__main__.py`) does not use `multiprocessing`. It is a pure PyQt6 + stdlib app. `freeze_support()` is not required. The packaging path is straightforward.
-
-### Build Mode: onedir (Recommended)
-
-Use `--onedir` (the default), not `--onefile`.
-
-- `--onefile` extracts to a temp directory on each launch, causing slower startup and more frequent antivirus false positives (extraction pattern resembles malware unpacking behavior).
-- `--onedir` produces a folder with the .exe and its DLLs; the .exe launches directly with no extraction step.
-- For a personal tool distributed by copying a folder, `--onedir` is simpler and more reliable.
-
-### Console Suppression: --noconsole
-
-Use `--noconsole` (alias: `--windowed`) so no black terminal window flashes when the user opens the control panel. With `--noconsole`, `sys.stdin`, `sys.stdout`, and `sys.stderr` become `None` in the packaged exe. Any code that accesses these directly (e.g., `print()` to console) will raise `AttributeError`. The control panel has no console output so this is not a concern, but note it for future debugging: use file logging rather than print statements in packaged builds.
-
-### Canonical Build Command
-
-```bash
-pyinstaller \
-  --onedir \
-  --noconsole \
-  --name MonitorControlPanel \
-  --icon assets/icon.ico \
-  control_panel/__main__.py
-```
-
-Or via a `.spec` file for reproducible builds (preferred):
+A swatch is a plain `QWidget` subclass that overrides `paintEvent()` to fill its rect with the
+current color. Update by calling `update()` after changing `self._color`:
 
 ```python
-# MonitorControlPanel.spec
-# -*- mode: python ; coding: utf-8 -*-
+class ColorSwatch(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(32, 32)
+        self._color = QColor("#000000")
 
-a = Analysis(
-    ['control_panel/__main__.py'],
-    pathex=[],
-    binaries=[],
-    datas=[],
-    hiddenimports=[],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
-    noarchive=False,
-)
-pyz = PYZ(a.pure)
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name='MonitorControlPanel',
-    console=False,  # --noconsole
-    icon='assets/icon.ico',
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    name='MonitorControlPanel',
-)
+    def set_color(self, color: QColor) -> None:
+        self._color = color
+        self.update()  # triggers paintEvent
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self._color)
+        painter.end()
 ```
+
+Do NOT use `setAutoFillBackground(True)` with `QPalette` for a live swatch — palette changes
+can be overridden by the parent's stylesheet. A direct `paintEvent()` override is reliable.
+
+### Pattern 3: Hex input validation
+
+`QRegularExpression` lives in `QtCore` (not `QtGui`) in PyQt6. `QRegularExpressionValidator`
+lives in `QtGui`. This split is a Qt6 change from Qt5 where both were in `QtGui`.
+
+```python
+from PyQt6.QtWidgets import QLineEdit
+from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtCore import QRegularExpression
+
+hex_re = QRegularExpression(r'^#[0-9A-Fa-f]{6}$')
+validator = QRegularExpressionValidator(hex_re)
+line_edit.setValidator(validator)
+```
+
+`QRegularExpressionValidator` automatically wraps the pattern in `\A`/`\z` anchors — do NOT
+double-anchor the pattern yourself. However, the validator allows "Intermediate" states during
+typing (e.g., `#FF` is intermediate, not invalid), so `line_edit.hasAcceptableInput()` or
+`editingFinished` should gate saving.
+
+For pre-validation of a full hex string without constructing a QColor:
+
+```python
+QColor.isValidColorName("#ff4444")  # returns True; preferred over deprecated isValidColor()
+```
+
+### Pattern 4: colorsys HSL model → QColor
+
+colorsys uses `hls_to_rgb(h, l, s)` — note the argument order is **H, L, S** (not H, S, L).
+QColor uses H, S, L order in `fromHslF(h, s, l)`. This transposition is a common bug source.
+
+```python
+import colorsys
+
+# Slider values: hue [0.0, 1.0], intensity [0.0, 1.0]
+# Fixed saturation = 1.0 (full saturation model)
+def hsl_to_hex(hue: float, intensity: float, saturation: float = 1.0) -> str:
+    # colorsys.hls_to_rgb takes (h, LIGHTNESS, saturation) — L is 2nd arg
+    r, g, b = colorsys.hls_to_rgb(hue, intensity, saturation)
+    return QColor(int(r * 255), int(g * 255), int(b * 255)).name()
+
+# Reverse: hex → slider values
+def hex_to_hsl(hex_str: str) -> tuple[float, float, float]:
+    c = QColor(hex_str)
+    r, g, b = c.redF(), c.greenF(), c.blueF()
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    return h, l, s  # hue, lightness (intensity), saturation
+```
+
+Using `QColor.fromHslF()` directly (bypassing colorsys) is equally valid and avoids the HLS
+argument order trap. Either approach is fine; pick one and be consistent:
+
+```python
+# Alternative: all-QColor approach (avoids colorsys HLS arg-order trap)
+def hsl_to_hex(hue: float, intensity: float) -> str:
+    return QColor.fromHslF(hue, 1.0, intensity).name()
+```
+
+### Pattern 5: Host background fill from config
+
+The existing `HostWindow.paintEvent()` already calls `painter.fillRect(self.rect(), QColor("#000000"))`.
+Changing `bg_color` requires only replacing the hardcoded literal with `QColor(self._bg_color)`.
+`QColor` accepts `#RRGGBB` strings in its constructor — no parse step needed.
+
+```python
+# In HostWindow.paintEvent():
+painter.fillRect(self.rect(), QColor(self._bg_color))  # self._bg_color from config hot-reload
+```
+
+Widget backgrounds become transparent: Pillow `Image.new("RGBA", (w, h), (0, 0, 0, 0))` and
+the host composites them over the filled background. This already works because the compositor
+uses `Format_RGBA8888` — per-pixel alpha is already respected.
 
 ---
 
@@ -223,11 +219,11 @@ coll = COLLECT(
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| HKCU Run key (winreg) | Task Scheduler via win32com.client | Use Task Scheduler if: (a) elevated privileges are needed at launch, (b) the task must run before user logon, (c) the task needs retry-on-failure or execution time limits. None of these apply to a user-session GUI app. |
-| HKCU Run key (winreg) | Windows Startup folder shortcut | Startup folder is a valid simple alternative. Requires creating a .lnk shortcut file programmatically (needs `winshell` or win32com.client shell dispatch). More file system coupling than registry. Appears in the same Windows Settings Startup apps page as Run keys. Choose only if you want to avoid registry writes on principle. |
-| HKCU Run key (winreg) | HKLM Run key | Use HKLM if the app must start for ALL users on the machine. Requires admin elevation to write. Not appropriate here — this is a single-user personal tool. |
-| PyInstaller --onedir | PyInstaller --onefile | Use --onefile only if distributing via a single-file download where folder complexity is a problem. The single-file extraction step hurts startup time and antivirus reputation. For a personal tool, onedir is strictly better. |
-| PyInstaller | Nuitka | Use Nuitka if you need smaller exe size, faster runtime, or significantly lower antivirus false positive rates (e.g., enterprise distribution with strict endpoint security). Build complexity and C toolchain requirement make it overkill for a personal project. |
+| Custom `QWidget` + transparent `QSlider` overlay for gradient groove | `QSlider` subclass overriding `paintEvent()` | Never — the style system draws over custom painting in QSlider subclasses; the overlay pattern is the documented workaround |
+| `colorsys.hls_to_rgb` or `QColor.fromHslF` for color math | Third-party `colour-science` or `colormath` packages | Only if ICC profile handling, perceptual uniformity (CIECAM02, Oklab), or wide-gamut conversion is needed — none of which apply here |
+| `QRegularExpressionValidator` for hex input | Regex in `editingFinished` handler | `QRegularExpressionValidator` prevents invalid characters from being entered at all; handler-only validation allows typing garbage and correcting on save, which is worse UX |
+| `QColor.isValidColorName()` for hex validation | `QColor(s).isValid()` | Both work; `isValidColorName()` is the current preferred API (`isValidColor()` is deprecated) |
+| `painter.fillRect(self.rect(), color)` for swatch | `setAutoFillBackground(True)` + palette | Palette approach is overridden by parent stylesheets; `paintEvent` override is reliable |
 
 ---
 
@@ -235,31 +231,27 @@ coll = COLLECT(
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `winsdk` (monolithic) | Archived October 2024 — confirmed in PROJECT.md out-of-scope list | Modular `winrt-*` packages (already in use) |
-| Task Scheduler for user-session autostart | Overkill; COM API complexity; does not appear in Windows Settings Startup apps list | HKCU Run key via `winreg` |
-| win32com.client for registry writes | win32com.client is for COM automation; `winreg` is stdlib and purpose-built for registry access | `winreg` (stdlib) |
-| PyInstaller `--onefile` | Slower startup, higher antivirus false-positive rate due to extraction pattern | `--onedir` |
-| `schtasks.exe` subprocess calls | Requires shell=True or subprocess call to external binary; fragile CLI parsing; no error objects | `winreg` for user autostart, `win32com.client` only if full Task Scheduler feature set is needed |
-| PyOxidizer | Last release Dec 2022; effectively unmaintained | PyInstaller 6.x |
-| Hardcoding Python paths in the Run key | Breaks if Python is reinstalled, env changes, or project moves | Resolve paths dynamically at toggle-time using `sys.executable` and `Path(__file__).resolve()` |
+| Subclassing `QSlider` and overriding `paintEvent()` | Style system repaints over custom drawing; custom content appears underneath or is invisible | `QWidget` subclass with painted groove + transparent `QSlider` child overlay |
+| `colorsys.hls_to_rgb(h, s, l)` with S before L | colorsys argument order is `(h, LIGHTNESS, saturation)` — L is the second argument; swapping S and L produces wrong colors silently | `colorsys.hls_to_rgb(h, l, s)` or use `QColor.fromHslF(h, s, l)` (QColor's order is H, S, L) |
+| `QRegularExpression` from `QtGui` | In PyQt6, `QRegularExpression` moved to `QtCore`; importing from `QtGui` raises `ImportError` | `from PyQt6.QtCore import QRegularExpression` |
+| `isValidColor()` (deprecated) | Deprecated in Qt6; use `isValidColorName()` | `QColor.isValidColorName(s)` |
+| Third-party color picker packages (`pyqt-colorpicker`, `pyqtpicker`) | Add a dependency for functionality achievable with ~80 lines of PyQt6; not packaged for PyInstaller without additional hooks | Inline `ColorPickerWidget` built from `QWidget` + `QSlider` + `QLineEdit` |
+| `event.rect()` in `paintEvent()` for full-widget fill | Only covers the dirty region; leaves unpainted gaps at certain widget sizes on Windows | `self.rect()` always returns the full widget rectangle |
+| QColorDialog | Launches a separate modal dialog — breaks the inline tab form UX; not reusable as an embedded widget | Inline `ColorPickerWidget` with sliders + swatch + hex field |
 
 ---
 
 ## Stack Patterns by Variant
 
-**If autostart is being set from a packaged control_panel.exe (future v1.2+):**
+**If `bg_color` or widget color is missing from config on upgrade:**
+- Fall back to the current hardcoded value (CLR-01 requirement: zero visual change on upgrade)
+- `config.get("bg_color", "#000000")` for host background
+- Widget settings use `settings.get("time_color", "#ffffff")` etc.
 
-When the control panel is a standalone .exe, `sys.executable` resolves to `MonitorControlPanel.exe`, not `pythonw.exe`. In that case, the autostart Run key must point to the host's `pythonw.exe` path, which cannot be derived from `sys.executable` inside a packaged control panel. The host Python path must be stored in `config.json` at install time or resolved via the registry (`HKCU\Software\Python\PythonCore`).
-
-For v1.1, the autostart feature is expected to be set while running in a Python environment (not from the packaged .exe), so `sys.executable` works correctly. Document this limitation for the future.
-
-**If PyInstaller build fails due to missing imports:**
-
-Run the built .exe from a terminal (temporarily remove `--noconsole`) to see the `ModuleNotFoundError`. Add the missing module to `hiddenimports` in the .spec file. Common candidates for PyQt6 apps: `PyQt6.sip`, `PyQt6.QtPrintSupport`.
-
-**If Windows Defender flags the built .exe:**
-
-Build PyInstaller's bootloader from source (documented in PyInstaller docs). This replaces the shared bootloader binary that antivirus databases recognize. For a personal tool never distributed publicly, this step is optional — just add an exclusion in Windows Defender.
+**If the all-QColor approach is used instead of colorsys:**
+- `QColor.fromHslF(hue, saturation, lightness)` — QColor HSL argument order is H, S, L
+- `c.hslHueF()`, `c.hslSaturationF()`, `c.lightnessF()` — round-trip back to slider values
+- This eliminates the colorsys HLS argument-order trap entirely
 
 ---
 
@@ -267,30 +259,28 @@ Build PyInstaller's bootloader from source (documented in PyInstaller docs). Thi
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| PyInstaller 6.19.0 | Python 3.8–3.14 | Current as of Feb 14 2026; confirmed on PyPI |
-| PyInstaller 6.19.0 | PyQt6 6.10.2 | PyQt6 hook in pyinstaller-hooks-contrib covers Qt6; no version conflict |
-| PyInstaller 6.19.0 | pywin32 311 | pywin32 runtime hook in pyinstaller-hooks-contrib; known PATH interaction with Qt SSL fixed in 6.x |
-| winreg (stdlib) | Python 3.x, Windows only | No version to pin; always available on Windows Python |
-| PyInstaller 6.x | winrt-* 3.2.1 | No hook exists in pyinstaller-hooks-contrib; moot for control panel (does not import winrt) |
+| PyQt6 6.10.2 | `colorsys` (stdlib) | Pure Python interfaces — no compatibility concern |
+| PyQt6 6.10.2 | `QRegularExpressionValidator` (QtGui) + `QRegularExpression` (QtCore) | This module split is stable since Qt6.0; confirmed in PyQt6 6.10.2 docs |
+| PyQt6 6.10.2 | `QColor.fromHslF`, `QColor.fromHsvF` | Available since Qt4; stable; confirmed in PyQt6 6.10.2 Riverbank docs |
+| PyInstaller 6.19.0 | `ColorPickerWidget` (pure PyQt6) | No new modules to collect; PyInstaller's existing PyQt6 hook covers everything |
 
 ---
 
 ## Sources
 
-- [PyPI — PyInstaller](https://pypi.org/project/pyinstaller/) — version 6.19.0, release date Feb 14 2026 confirmed — HIGH confidence
-- [PyInstaller docs 6.19.0 — Common Issues and Pitfalls](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html) — noconsole stdout/stderr None, multiprocessing freeze_support requirements — HIGH confidence
-- [Qt for Python — Deployment with PyInstaller](https://doc.qt.io/qtforpython-6/deployment/deployment-pyinstaller.html) — official Qt endorsement of PyInstaller for PyQt6/PySide6 packaging — HIGH confidence
-- [PyInstaller changelog 6.19.0](https://pyinstaller.org/en/stable/CHANGES.html) — pywin32 PATH interaction with Qt SSL DLL fix confirmed in 6.x — HIGH confidence
-- [Python docs — winreg](https://docs.python.org/3/library/winreg.html) — stdlib module, Windows-only, HKCU/HKLM access — HIGH confidence
-- [PyInstaller GitHub issue #8857](https://github.com/pyinstaller/pyinstaller/issues/8857) — Qt OpenSSL DLL conflict with pywin32 runtime hook details — MEDIUM confidence
-- [PyInstaller Wiki — Recipe Multiprocessing](https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing) — freeze_support requirement details — HIGH confidence
-- [pyinstaller-hooks-contrib GitHub](https://github.com/pyinstaller/pyinstaller-hooks-contrib) — confirmed community hooks repository; no winrt hook found — MEDIUM confidence (browse-based verification)
-- WebSearch — PyOxidizer last release Dec 2022 confirmed via GitHub — HIGH confidence
-- WebSearch — cx_Freeze 8.6.0 released Feb 2026 (actively maintained alternative) — MEDIUM confidence
-- WebSearch — Nuitka antivirus false positive improvement vs PyInstaller comparison — MEDIUM confidence (community articles, not official benchmarks)
-- WebSearch — HKCU Run key vs Task Scheduler tradeoffs, Windows Settings Startup app visibility — MEDIUM confidence (multiple consistent community sources)
+- [PyQt6 QColor API — Riverbank Computing](https://www.riverbankcomputing.com/static/Docs/PyQt6/api/qtgui/qcolor.html) — `isValidColor` deprecated; `isValidColorName` preferred; `fromHslF`, `fromHsvF` signatures; `name(NameFormat)` — HIGH confidence
+- [Qt6 QColor Class Reference](https://doc.qt.io/qt-6/qcolor.html) — `fromHsv(h,s,v,a)` 0-359 hue, 0-255 others; `fromHslF` float variant; `name()` returns `#RRGGBB`; internal 16-bit precision note — HIGH confidence
+- [Qt6 QSlider Class Reference](https://doc.qt.io/qt-6/qslider.html) — `valueChanged` signal, `setValue`, `setRange`, `setOrientation`; `paintEvent` and `initStyleOption` protected; stylesheet subcontrol guidance — HIGH confidence
+- [Qt6 Stylesheet Examples — Customizing QSlider](https://doc.qt.io/qt-6/stylesheet-examples.html#customizing-qslider) — `::groove:horizontal`, `::handle:horizontal`, `::add-page`, `::sub-page` subcontrol syntax; `qlineargradient` in stylesheet — HIGH confidence
+- [Qt6 QRegularExpressionValidator](https://doc.qt.io/qt-6/qregularexpressionvalidator.html) — auto-anchors pattern; Acceptable/Intermediate/Invalid states; lives in QtGui — HIGH confidence
+- [PySide6 QRegularExpression — QtCore](https://doc.qt.io/qtforpython-6/PySide6/QtCore/QRegularExpression.html) — confirmed in QtCore (not QtGui) in Qt6 — HIGH confidence
+- [linux-nerds.org — PyQt6 QRegularExpressionValidator](https://linux-nerds.org/topic/1135/pyqt6-qregularexpressionvalidator) — `from PyQt6.QtCore import QRegularExpression` / `from PyQt6.QtGui import QRegularExpressionValidator` split confirmed in PyQt6 — HIGH confidence
+- [Qt Forum — PyQt6 Windows paintEvent not filling whole widget](https://forum.qt.io/topic/128153/pyqt6-windows-os-custom-paintevent-doesn-t-fill-the-whole-widget-background-in-some-size) — `event.rect()` vs `self.rect()` bug on Windows confirmed; use `self.rect()` for full-widget fill — HIGH confidence
+- [pythonguis.com — Creating Custom Widgets in PyQt6](https://www.pythonguis.com/tutorials/pyqt6-creating-your-own-custom-widgets/) — `paintEvent` pattern, `update()` trigger requirement, Y-axis orientation, `setSizePolicy` — MEDIUM confidence
+- [runebook.dev — Customizing QSlider: From Stylesheets to Proxies](https://runebook.dev/en/docs/qt/qslider/paintEvent) — confirmed `paintEvent` subclassing does not work; stylesheet or widget composition is required — MEDIUM confidence (secondary source, consistent with official docs)
+- [Python docs — colorsys](https://docs.python.org/3/library/colorsys.html) — `hls_to_rgb(h, l, s)` argument order (L before S), float [0.0, 1.0] all args — HIGH confidence
 
 ---
 
-*Stack research for: MonitorControl v1.1 — Windows autostart and standalone .exe packaging additions*
+*Stack research for: MonitorControl v1.2 — Configurable color system additions*
 *Researched: 2026-03-27*

@@ -1,19 +1,24 @@
 # Feature Research
 
-**Domain:** Desktop widget bar / persistent utility display framework (Windows, Python/PyQt6)
-**Researched:** 2026-03-27 (v1.1 addendum — autostart and .exe packaging)
-**Confidence:** HIGH for autostart mechanics and PyInstaller flags (verified against official docs and community sources); MEDIUM for PyInstaller/multiprocessing interaction (known issue class, needs integration testing); HIGH for UX expectations (common desktop app patterns)
+**Domain:** Configurable color system for a desktop utility bar / widget app settings panel (PyQt6)
+**Researched:** 2026-03-27 (v1.2 milestone — configurable colors)
+**Confidence:** HIGH for color picker mechanics (well-established patterns, verified against Qt docs and codebase); HIGH for UX anti-features (confirmed by codebase constraints); MEDIUM for competitor comparisons (WebSearch only)
 
 ---
 
-## v1.1 Scope Context
+## v1.2 Scope Context
 
-v1.0 ships the core host app, control panel, Pomodoro, Calendar, and Notification widgets. v1.1 adds two "finished software" features:
+v1.1 shipped autostart and control panel packaging. v1.2 replaces all hardcoded colors with a user-configurable color system:
 
-1. **Host autostart** — host launches automatically at Windows login, configurable from the control panel, no terminal visible
-2. **Control panel .exe** — `control_panel` packaged as `MonitorControl.exe` requiring no Python environment
+- Bar background color (`bg_color`) moves from hardcoded `#1a1a2e` in widgets to compositor-owned, config-driven fill
+- Calendar text colors (`time_color`, `date_color`) become configurable per-widget settings
+- Pomodoro tab's three hex QLineEdit fields are replaced with a reusable `ColorPickerWidget`
+- A reusable `ColorPickerWidget` (hue slider + intensity slider + hex input + live swatch) is the central deliverable
 
-These are the two features between "developer tool" and "finished software." Both are table stakes for any persistent utility app.
+Existing code state (from codebase inspection):
+- `control_panel/main_window.py`: three `QLineEdit` fields for Pomodoro accent colors already exist — these are replaced by `ColorPickerWidget`
+- `widgets/calendar/widget.py`: `_bg_color = (26, 26, 46, 255)`, `_time_color = (255, 255, 255, 255)`, `_text_color = (220, 220, 220, 255)` are hardcoded — these become config-driven
+- `host/compositor.py`: `painter.fillRect(slot_rect, QColor("#1a1a1a"))` for empty slots — background ownership moves to host before widget paint
 
 ---
 
@@ -21,104 +26,111 @@ These are the two features between "developer tool" and "finished software." Bot
 
 ### Table Stakes (Users Expect These)
 
-Features a persistent Windows utility app must have. Missing these = product feels like a prototype.
+Features a color configuration UI must have. Missing these makes the UI feel broken or unfinished.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Autostart toggle in settings | Every persistent utility (Discord, Slack, Spotify, 1Password, YASB) puts "Launch at startup" in settings. Absence means users must manually start the app on every login or maintain their own Task Scheduler entry. | LOW | `winreg` write to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. No elevation needed. The existing control panel already has a tab-based settings UI to host this. |
-| No terminal window on autostart | Users who see a cmd.exe window flash or stay open on login immediately assume something is broken or that they installed "developer software." Every mainstream Windows utility suppresses the console. | LOW | Python: use `pythonw.exe` instead of `python.exe`, or package as `.exe` with `--noconsole`. For the packaged .exe this is handled by PyInstaller `--windowed`. For unpackaged script-based autostart, the registry value must point to `pythonw.exe`. |
-| Standalone .exe for control panel | Users who share this app or want to run it on a machine without Python installed expect a double-clickable file. No `pip install`, no virtualenv, no PATH setup. | MEDIUM | PyInstaller is the standard tool. Produces either a single `.exe` (--onefile) or a folder with an `.exe` entry point (--onedir). |
-| Toggle reflects actual system state on open | When users open settings, the "Start at login" checkbox/toggle must read the real current state, not a cached value. If the user manually deleted the registry key, the toggle should show "off." | LOW | On control panel startup, read `HKCU\...\Run` for the app's key name and set the toggle accordingly. Do not rely solely on a config.json flag. |
-| Autostart survives app updates | If a new version is placed at a different path, or the .exe is renamed, the old autostart entry breaks silently. The app should update its own registry entry when the path changes. | LOW | Write the registry entry at the path of the currently-running executable (`sys.executable` or `os.abspath(sys.argv[0])`). Re-register on every enable or whenever the path has changed. |
-| Graceful toggle failure feedback | If the registry write fails (unlikely for HKCU, but possible on managed systems), users need a clear error, not silent failure where the toggle appears enabled but autostart never runs. | LOW | Wrap `winreg` calls in try/except. Show `QMessageBox.warning` on failure. Reset the toggle to its previous state. |
-
----
+| Hue slider (0–359 degrees) | Primary color selection axis; universal in all color pickers since Photoshop; without it users cannot select a color intuitively | LOW | `QSlider(Qt.Horizontal)` with range 0–359; `QColor.fromHsv(h, s, v)` converts to RGB for display |
+| Intensity/value slider (0–100%) | Controls dark-to-vivid axis; essential for a dark-background bar where the same hue at full value looks very different from 40% | LOW | Value component of HSV; range 0–100 mapped to 0–255 internally via `QColor.fromHsv` |
+| Live swatch preview | Users cannot evaluate a color from slider positions alone; they need to see the result; hex strings give zero visual feedback | LOW | A `QFrame` with `setStyleSheet(f"background-color: {hex_str};")` updated on every slider change |
+| Hex input field with validation | Power users paste exact hex codes; hex is universal across design tools; the existing Pomodoro fields already establish this expectation | LOW | `QLineEdit` with a 7-char `#RRGGBB` regex validator or `inputMask`; already present for Pomodoro — replace, do not add |
+| Bidirectional sync (sliders update hex, hex updates sliders) | If the sliders can update hex but hex cannot update sliders, users who type a hex value have no confirmation it registered; inconsistency is a UX bug | MEDIUM | Two-way binding with `blockSignals(True)` guards or an `_updating: bool` instance flag to prevent update loops |
+| Defaults that match current hardcoded values | Users upgrading from v1.1 must see zero visual change; unexpected color change on upgrade destroys trust | LOW | Default values: `bg_color: "#1a1a2e"`, `time_color: "#ffffff"`, `date_color: "#dcdcdc"`, Pomodoro defaults: `#ff4444`, `#44ff44`, `#4488ff` — all match existing hardcoded values |
+| Persist on Save | Color changes survive Save + reload cycle; the existing Save button pattern and atomic config write must apply to color fields identically to other settings | LOW | Serialize as `"#rrggbb"` strings in config.json; the pattern is already established for Pomodoro color fields |
 
 ### Differentiators (Competitive Advantage)
 
-Features beyond the bare minimum for autostart + packaging, aligned with the "finished software" goal.
+Features that add value beyond the minimum, worthwhile for this personal utility context.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Toggle reads live registry state | Most apps store autostart state in their own config and may desync from Windows. Reading the actual registry on each panel open means the UI is always correct even if the user changed state via Task Manager or registry editor. | LOW | Use `winreg.QueryValueEx` at control panel startup. Fall back to "disabled" if the key is missing. |
-| .exe correctly handles config.json path | A packaged .exe must locate `config.json` relative to its own location, not `cwd`. Apps that hardcode relative paths silently fail when launched from autostart (working directory is system root or user home, not the app directory). | MEDIUM | In the frozen .exe, use `sys.executable`'s directory as the config root. `os.path.dirname(os.path.abspath(sys.executable))` is the reliable approach for both frozen and unfrozen execution. |
-| Autostart points to the .exe, not pythonw.exe | Once a distributable .exe exists, the autostart entry should point to it directly. This decouples the user from requiring Python to be installed and avoids the `pythonw.exe` path variation across Python versions and install locations. | LOW | Only applicable if packaging is done. The registry value becomes `C:\path\to\MonitorControl.exe`. |
-| Build reproducibility via .spec file | A committed `.spec` file means the build is reproducible from any machine with PyInstaller installed, without memorizing command-line flags. Professional open-source Python apps (e.g., Calibre, Mu Editor) all ship with spec files. | LOW | Generate once with `pyinstaller --name MonitorControl ...`, then commit `MonitorControl.spec`. Subsequent builds use `pyinstaller MonitorControl.spec`. |
-
----
+| Gradient-painted hue track | The slider track painted as a rainbow gradient makes the current hue position obvious without mental translation from a 0–359 number; no other setting in the control panel requires this kind of spatial reasoning | MEDIUM | Custom `paintEvent` on a `QSlider` subclass drawing a `QLinearGradient` across hue 0–359; or a stylesheet `qlineargradient` if Qt supports it for the groove sub-control. Either way: well-understood, no custom hit testing needed |
+| Fixed saturation (not exposed) | The bar runs on a very dark background (#1a1a2e); full HSV exposes S (saturation) as a third slider that adds complexity with little practical gain — for this use case hue + value is sufficient to cover the entire useful color space | LOW | This is a deliberate non-feature that reduces widget surface area; fix saturation at 85–90%; users who need a specific exact color use hex input |
+| Colored swatch button beside label | A small colored rectangle next to the field label shows the current color at a glance without expanding anything; reinforces "this is a color setting" without extra words | LOW | `QLabel` or narrow `QFrame` with `setFixedWidth(32)` and `setStyleSheet` background; placed in the form row beside the "Work Color:" label |
+| Bar background preview strip in Layout tab | A fixed-height narrow horizontal strip painted with the current `bg_color` value in the Layout tab makes the spatial relationship (this is what fills the bar behind everything) immediately obvious | LOW | A `QFrame` with fixed height (e.g. 24px), full row width, updated on color change |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| HKLM (system-wide) autostart | Seems "more robust" — starts for all users. | Requires UAC elevation on write. Most utility apps have no reason to start for all users. Causes confusion when one user disables and another is surprised it still starts. | Use HKCU. No elevation needed. Correct scope for a per-user utility. |
-| Task Scheduler instead of registry for autostart | Task Scheduler allows delay, priority, conditions. | Significantly more complex API (`schtasks.exe` or XML-based COM interface). No UI benefit to the user. For a GUI utility with no elevated-privilege needs, HKCU Run is the standard and sufficient. | HKCU Run key. Simple, user-visible in Task Manager Startup tab, deletable by the user if desired. |
-| --onefile PyInstaller for the packaged .exe | Single `.exe` is simpler to share. | Slow first-launch: --onefile extracts its bundle to a temp directory on every run before executing. **Critical conflict with this project:** MonitorControl uses `multiprocessing` with the `spawn` start method (Windows default). `--onefile` + `multiprocessing` on Windows has documented issues with subprocess re-launches (each spawned subprocess re-extracts the bundle, or fails). --onedir avoids this entirely. | Use `--onedir`. Produces a folder; the entry-point `.exe` is still a double-click. Users interact only with the `.exe`. If a single-file distribution is required, wrap in an installer (NSIS, Inno Setup) that installs the onedir bundle. |
-| Packaging the host and control panel as one .exe | Fewer files to distribute. | The host (`host/main.py`) uses `multiprocessing.Process` to spawn widget subprocesses. In a frozen .exe, every spawned subprocess re-enters the frozen executable's `__main__`, requiring `multiprocessing.freeze_support()` and careful entry point separation. Combining host + control panel into one .exe adds complexity with no user benefit — the two processes have different roles and lifecycles. | Package the control panel as `MonitorControl.exe`. The host runs as a Python script (or separate exe) pointed to by the autostart registry key. v1.1 scope is control panel packaging only. |
-| Auto-update mechanism | Users want the latest version automatically. | Out-of-scope complexity: code signing, update server, rollback, delta updates, UAC for HKLM installs. Every serious update system (Squirrel, WinSparkle, MSIX) is a significant engineering investment. | Provide a GitHub Releases page. Users download and replace the folder manually. Note the new path in your release notes so they can re-run the autostart enable toggle. |
-| Embedding config.json inside the .exe | Simplifies distribution — truly single-file. | config.json is mutable user data. Embedding it means user settings would be wiped on every app update (the .exe is replaced, the embedded config is replaced). | config.json lives alongside the .exe (or in a well-known user data directory like `%APPDATA%\MonitorControl`). On first run, create a default if absent. |
-| Installer (NSIS, Inno Setup, WiX) for v1.1 | "Real" software has an installer. | Installer toolchain adds a build step, requires learning a DSL (NSIS/Inno Setup script), and produces a UAC-elevating setup.exe that antivirus tools sometimes flag. For a personal utility, a portable folder + README is faster to ship and easier to update. | Deliver as a portable onedir folder. Autostart toggle handles the startup registration from inside the app. No installer needed until there is demand for HKLM installation or file associations. |
+| Full HSV/HSL/RGB/CMYK switcher | "Professional" tools like Photoshop have it; users expect parity | Multiplies UI surface 3–4×; forces format conversion code for every read/write path; this app has 5–6 fixed accent colors, not a design workflow requiring CMYK; the control panel window is 480px minimum — multiple format panels do not fit gracefully | Expose H + V only; accept hex input as the precision escape hatch for any value sliders cannot easily reach |
+| Color wheel (circular picker) | Looks impressive; common in mobile apps; some PyQt libs offer it | Requires a canvas widget with mouse hit-testing inside a circle — significant custom Qt painting and pointer math; circular pickers are harder to use precisely than linear sliders; the control panel window is narrow and the wheel needs ~200×200 pixels of square canvas | Two linear `QSlider` widgets are easier to use precisely, require no custom mouse hit-testing, and fit naturally in a `QFormLayout` row |
+| Eyedropper / screen color sampling | Power users want to sample colors from elsewhere on the screen (wallpaper, another app) | Requires Win32 `GetPixel` or screenshot-and-sample loop; full-screen screenshot on Windows with elevated permissions is complex; the control panel is a settings panel, not a design tool | Hex input is sufficient as an escape hatch; users can use a system color picker or external tool and paste the hex value |
+| Real-time bar preview (live edit on bar as sliders move) | Users want to see changes on the bar without pressing Save | The bar is on Display 3; the control panel is on a primary display — the user cannot see both simultaneously while operating the sliders; the hot-reload system requires a config file write to trigger QFileSystemWatcher; adding a side channel for unsaved preview state adds architectural complexity for marginal value | Live swatch in the control panel provides immediate feedback; Save triggers hot-reload fast enough (QFileSystemWatcher + 100ms debounce) that round-trip latency is acceptable |
+| Alpha/opacity slider per color | Widgets on a transparent surface could blend with a background | The host compositor fills the bar background with a solid color (BG-01 moves background ownership to compositor); per-color alpha has no rendering target in the current architecture; mixing semi-transparent widget renders on top of a solid compositor fill produces correct results only if widget alpha is 0 (transparent) or 255 (opaque) | Keep all user-facing colors fully opaque (`#rrggbb` not `#aarrggbb`); the compositor `bg_color` alpha is always 255 |
+| Theme presets / saved palettes | "Let me save my favorite color schemes" | Creates a separate data management problem: CRUD for presets, a new config schema section, an additional UI surface area (preset list, add/delete buttons, name input); this app has a single user with a single bar and a small fixed number of color slots | Manual hex input provides equivalent flexibility without building a palette manager; if presets become important, they are a v2+ backlog item |
+| QColorDialog (Qt native) as the picker | Built-in, no code needed | Modal dialog: it blocks the settings panel, requires a click to open and another to confirm, provides no inline preview in context with the other settings, and shows a full HSV/CMYK/HTML panel that is overkill for this use case | Inline widget (hue + value sliders + swatch) in the form layout provides immediate feedback without modal interruption |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Autostart toggle in control panel]
-    └──requires──> [winreg write to HKCU Run]
-    └──requires──> [Absolute path to host executable]
-    └──requires──> [Toggle reads live registry state on panel open]
-    └──enhanced by──> [.exe packaging] (autostart can point to .exe instead of pythonw.exe)
+[ColorPickerWidget (reusable PyQt6 QWidget subclass)]
+    └──requires──> [Hue QSlider (0–359)]
+    └──requires──> [Intensity/Value QSlider (0–100)]
+    └──requires──> [Live swatch QFrame]
+    └──requires──> [Hex QLineEdit (validated, #RRGGBB)]
+    └──requires──> [Bidirectional slider ↔ hex sync with blockSignals guards]
+    └──emits──>    [color_changed(hex_str: str) signal]
 
-[.exe packaging (PyInstaller --onedir --noconsole)]
-    └──requires──> [multiprocessing.freeze_support() in host entry point]
-    └──requires──> [config.json path resolved relative to sys.executable, not cwd]
-    └──requires──> [.spec file for reproducible builds]
-    └──requires──> [Hidden imports declared for winrt and pywin32]
-    └──conflicts with──> [--onefile mode] (multiprocessing spawn issues on Windows)
+[bg_color in config.json]
+    └──requires──> [Compositor owns bar background fill (BG-01)]
+                       └──requires──> [Widgets render on transparent background (alpha=0 bg)]
+                                          └──requires──> [CalendarWidget._bg_color changed from solid to transparent]
+    └──exposed by──> [ColorPickerWidget in Layout tab (BG-03)]
 
-[No terminal window on autostart]
-    └──requires──> [--noconsole / --windowed flag in PyInstaller build]
-    └──OR requires──> [pythonw.exe as interpreter in HKCU Run value (non-packaged path)]
+[Calendar time_color / date_color]
+    └──requires──> [CalendarWidget reads colors from config settings block (CAL-04..05)]
+    └──exposed by──> [ColorPickerWidget in Calendar tab (CAL-06)]
+    └──reuses──>   [ColorPickerWidget] (same widget class, different instance)
 
-[config.json path resolution in frozen .exe]
-    └──required by──> [.exe packaging usable from any working directory]
-    └──required by──> [Autostart (working dir at login is not app dir)]
+[Pomodoro accent pickers]
+    └──replaces──> [Three existing QLineEdit hex fields in Pomodoro tab]
+    └──reuses──>   [ColorPickerWidget] (same widget class, three instances)
+
+[Bidirectional sync]
+    └──conflicts──> [Naive signal connections without guards]
+                    (slider.valueChanged → update_hex AND hex.textChanged → update_sliders
+                     creates an infinite update loop without blockSignals or _updating flag)
 ```
 
 ### Dependency Notes
 
-- **Autostart path and .exe packaging are sequenced:** The autostart feature can be built independently of packaging (pointing to `pythonw.exe`), but the final autostart registry value should be updated once packaging is done to point to the `.exe`. Build packaging first in v1.1 so the autostart toggle can write the correct final value.
-- **freeze_support() is non-negotiable:** The host uses `multiprocessing` with spawn. Without `multiprocessing.freeze_support()` at the very top of the frozen entry point, spawning widget subprocesses from a frozen `.exe` causes an infinite spawn loop (each child re-enters `__main__` and tries to spawn again). This must be in place before the host's `.exe` is ever tested.
-- **config.json path resolution must be fixed before packaging:** The current `control_panel/__main__.py` hardcodes `config_path="config.json"` (relative). This resolves correctly when run from the project root but silently fails when the `.exe` is launched from autostart or any other working directory. The fix must happen at the code level before packaging.
-- **winrt hidden imports:** The six `winrt-*` packages (winrt-runtime, winrt-Windows.UI.Notifications, etc.) use dynamic import patterns that PyInstaller cannot auto-detect. Each must be declared as a hidden import in the `.spec` file. Expect to iterate: run the built `.exe`, check for `ModuleNotFoundError`, add the missing module to `hiddenimports`, rebuild.
-- **pywin32 is handled automatically:** Recent PyInstaller versions (5.x+) include hooks for pywin32 that handle DLL path bootstrapping. No manual hidden imports needed for pywin32 311.
+- **Compositor background ownership (BG-01) is a prerequisite for bg_color:** The compositor currently does `painter.fillRect(slot_rect, QColor("#1a1a1a"))` to fill empty slots, which incidentally serves as background. For a configurable `bg_color`, the host must call `painter.fillRect(window_rect, QColor(bg_color))` before iterating slots, and widgets must render with a transparent background (RGBA alpha=0 where they have no content). This rendering architecture change must be in place before `bg_color` is exposed in config.
+
+- **ColorPickerWidget lives in `control_panel/` only:** It is a PyQt6 widget. Widget subprocess code (Pillow-based) is Qt-free. Colors flow from the control panel to the widget processes as hex strings in config.json, deserialized by the widget into RGBA tuples using `PIL.ImageColor.getrgb()` or manual parsing. No PyQt6 import bleeds into widget subprocess code.
+
+- **Bidirectional sync requires explicit loop prevention:** Connecting `slider.valueChanged` → `update_hex` and `hex.textChanged` → `update_sliders` creates a signal loop. The standard PyQt6 pattern is an `_updating: bool` instance flag set to `True` before programmatic updates and checked at the top of each handler. `blockSignals(True)` is an alternative but hides other signals.
+
+- **CalendarWidget has two color roles (time and date):** The existing code uses `_time_color` for the large time text and `_text_color` for the date line. Both become configurable. The config.json settings block gains `time_color` and `date_color` keys. The widget reads these on init and on `ConfigUpdateMessage`. The naming convention in config should be `time_color` and `date_color` to match the PROJECT.md requirements (CAL-04..05).
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1.1)
+### Launch With (v1.2)
 
-Minimum for this milestone to feel like "finished software."
+This milestone is the MVP — all items below constitute the complete v1.2 scope.
 
-- [ ] Autostart toggle in control panel "Startup" group (checkbox or toggle button) — reads live HKCU registry state on open
-- [ ] Enable writes `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\MonitorControl` pointing to absolute host path; disable deletes the key
-- [ ] No terminal visible when host launches from autostart (pythonw.exe reference or packaged .exe)
-- [ ] Control panel packaged as `MonitorControl.exe` via PyInstaller `--onedir --noconsole`
-- [ ] config.json path resolved from `sys.executable` directory in frozen build, not `cwd`
-- [ ] Reproducible `.spec` file committed to repo
+- [ ] **Compositor owns bar background (BG-01):** Host fills entire window rect with `bg_color` before painting widget frames; widgets render on transparent (alpha=0) background
+- [ ] **bg_color in config.json (BG-02):** Top-level key, default `"#1a1a2e"`, read by host on hot-reload
+- [ ] **ColorPickerWidget (CPKR-01):** Reusable `QWidget` subclass with hue slider, intensity/value slider, live swatch, hex input, bidirectional sync, `color_changed(str)` signal
+- [ ] **bg_color picker in Layout tab (BG-03):** Layout tab gains a ColorPickerWidget for bar background color
+- [ ] **Pomodoro hex fields replaced (POMO-06):** Three QLineEdit accent color fields replaced with three ColorPickerWidget instances
+- [ ] **Calendar time_color + date_color (CAL-04..06):** CalendarWidget reads both from settings block; Calendar tab gains two ColorPickerWidget instances
+- [ ] **Zero visual change on upgrade (CLR-01):** All color defaults match current hardcoded values exactly
 
-### Add After Validation (v1.1 polish)
+### Add After Validation (v1.2 polish)
 
-- [ ] Status label below the toggle: "MonitorControl will start automatically at next login" / "MonitorControl will not start automatically" — eliminates ambiguity about when the setting takes effect
-- [ ] Icon for `MonitorControl.exe` (`.ico` file via `--icon` flag) — distinguishes it from generic Python apps in Explorer and Task Manager
+- [ ] **Gradient-painted hue track** — Visual polish only; add after base ColorPickerWidget is confirmed stable; no behavior change
+- [ ] **Bar background preview strip in Layout tab** — Low complexity; makes bg_color purpose spatially obvious
 
 ### Future Consideration (v2+)
 
-- [ ] Installer (Inno Setup or NSIS) — only needed if distributing to non-developer users who need Start Menu entries, file associations, or uninstaller support
-- [ ] Auto-update — only after establishing a stable release cadence and user base
-- [ ] Package host as a separate .exe — adds freeze_support complexity to the multiprocess widget spawn path; defer until control panel packaging is proven
+- [ ] **Theme presets** — Only if multi-profile or share-with-others use case emerges
+- [ ] **Eyedropper** — Only if users report hex input is an insufficient precision escape hatch
+- [ ] **Per-widget opacity** — Only if architecture changes to support alpha-composited widget layers
 
 ---
 
@@ -126,198 +138,56 @@ Minimum for this milestone to feel like "finished software."
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Autostart toggle (HKCU Run) | HIGH | LOW | P1 |
-| No terminal on autostart | HIGH | LOW | P1 |
-| Toggle reads live registry state | HIGH | LOW | P1 |
-| config.json path fix for frozen exe | HIGH | LOW | P1 |
-| Control panel .exe (--onedir --noconsole) | HIGH | MEDIUM | P1 |
-| Reproducible .spec file | MEDIUM | LOW | P1 |
-| winrt hidden imports in .spec | HIGH | MEDIUM | P1 (blocks packaging) |
-| Status label below toggle | MEDIUM | LOW | P2 |
-| .exe icon (.ico) | LOW | LOW | P2 |
-| Host packaged as .exe | LOW | HIGH | P3 |
-| Installer | LOW | HIGH | P3 |
+| ColorPickerWidget (hue + value sliders + swatch + hex) | HIGH | LOW | P1 |
+| Bidirectional slider ↔ hex sync | HIGH | MEDIUM | P1 |
+| Compositor owns bg fill (BG-01) | HIGH (prerequisite) | MEDIUM | P1 |
+| bg_color in config + Layout tab picker | HIGH | LOW (reuse) | P1 |
+| Pomodoro hex fields → ColorPickerWidget | HIGH | LOW (reuse) | P1 |
+| Calendar time_color + date_color | HIGH | LOW (reuse) | P1 |
+| Widget transparent background rendering | HIGH (prerequisite) | LOW | P1 |
+| Defaults matching current hardcoded values | HIGH | LOW | P1 |
+| Gradient hue track on slider | LOW | MEDIUM | P3 |
+| Bar background preview strip | LOW | LOW | P2 |
+| Fixed saturation (not exposing S slider) | HIGH (simplicity) | LOW (non-feature) | P1 |
 
 **Priority key:**
-- P1: Required for v1.1 milestone completion
-- P2: Polish — add if time allows, does not block milestone
-- P3: Future milestone or backlog
+- P1: Required for v1.2 milestone
+- P2: Polish, add if time permits
+- P3: Nice to have, future consideration
 
 ---
 
-## Autostart UX Patterns (What Users Expect)
+## Competitor / Reference Analysis
 
-Based on patterns from Discord, Slack, 1Password, Spotify, and Windows-native utilities:
+Reference implementations reviewed for pattern extraction (what comparable tools do for color config):
 
-### Toggle Location
-- A "Startup" section within an existing "General" or dedicated settings tab, not a top-level menu item.
-- Label: "Start MonitorControl automatically at login" or "Launch at startup". Avoid technical language ("Write to registry," "HKCU Run key").
-- Control: A `QCheckBox` is the most common and recognizable control for a binary persistent setting on Windows. A toggle switch (QToolButton styled as toggle) is acceptable if the control panel adopts a modern look. Avoid radio buttons for a single binary setting.
+| Feature | Rainmeter | yasb (PyQt6, Windows) | Our Approach |
+|---------|-----------|------------------------|--------------|
+| Color config mechanism | Hex strings hand-edited in .ini skin files | CSS-like stylesheet strings in config.yaml | Hex strings in config.json via GUI color pickers |
+| Color picker UI | None — raw hex in text file | None — raw CSS string | Inline hue + value sliders + swatch + hex input |
+| Live preview | None — requires skin reload | None — requires restart | Swatch in control panel; hot-reload on Save |
+| Per-widget vs global colors | Global via skin variables | Per-widget via CSS class selector | Both: global `bg_color`, per-widget accent/text colors |
+| Saturation control | Full HSL in CSS | Full CSS color syntax | Fixed saturation (intentionally limited for simplicity) |
 
-### Toggle Behavior
-- **On enable:** Write registry key immediately (not on "Save" button click). The setting should take effect without requiring a separate save action. Confirmation is the toggle moving to "checked" state.
-- **On disable:** Delete registry key immediately. Same rationale — the user acted, the system should respond.
-- **On panel open:** Query registry, set toggle state to match. Never trust a stale in-memory value.
-- **On failure:** Show an inline error label or `QMessageBox.warning` with the OS error. Reset the toggle to its previous state. Never leave the toggle in a state that does not reflect reality.
-
-### "When does this take effect?" Expectation
-- Users know autostart means "next time I log in." No confirmation dialog needed.
-- An optional static label ("Changes take effect at next login") is acceptable but not required — the label "at login" in the toggle text itself conveys this.
-
-### What "Finished Software" Looks Like
-- Task Manager's Startup tab shows "MonitorControl" (not "python" or "pythonw") with a reasonable startup impact rating.
-- The entry's command path is an `.exe`, not a Python script.
-- The entry is removable by the user from Task Manager without breaking anything (the control panel will show "disabled" on next open).
-- No console window appears at any point during autostart.
-
----
-
-## PyInstaller Packaging Specifics (Control Panel)
-
-### Recommended Build Command (first run to generate .spec)
-
-```
-pyinstaller --name MonitorControl --onedir --noconsole --icon assets/icon.ico control_panel/__main__.py
-```
-
-If no icon exists yet, omit `--icon`. After first run, commit `MonitorControl.spec` and use:
-
-```
-pyinstaller MonitorControl.spec
-```
-
-### Known Requirements for This Project's Dependencies
-
-| Dependency | PyInstaller Handling | Action Required |
-|------------|---------------------|-----------------|
-| PyQt6 6.10.2 | Auto-detected via hooks in PyInstaller 5.x+ | None |
-| pywin32 311 | Auto-handled; pyinstaller includes pywin32 bootstrap hooks | None |
-| winrt-runtime 3.2.1 | Dynamic imports not auto-detected | Add each winrt module to `hiddenimports` in .spec |
-| winrt-Windows.UI.Notifications | Same | Add to `hiddenimports` |
-| winrt-Windows.Foundation | Same | Add to `hiddenimports` |
-| winrt-Windows.Foundation.Collections | Same | Add to `hiddenimports` |
-| winrt-Windows.ApplicationModel | Same | Add to `hiddenimports` |
-| winrt-Windows.UI.Notifications.Management | Same | Add to `hiddenimports` |
-
-Iterative approach: build, run the `.exe`, note any `ModuleNotFoundError`, add to `hiddenimports`, rebuild. Expect 2-3 iterations for the winrt modules.
-
-### --onefile vs --onedir Decision
-
-Use `--onedir` for this project. Rationale:
-
-1. **Multiprocessing compatibility:** The host uses `multiprocessing` with Windows' default `spawn` start method. `--onefile` + `spawn` on Windows has documented issues (child processes re-enter `__main__` and may re-extract the bundle or fail). `--onedir` sidesteps this entirely. The control panel does not spawn subprocesses itself, but the same build should remain safe if the host is ever packaged.
-2. **Startup speed:** `--onefile` extracts to a temp directory on every launch. For an app launched at login, unnecessary startup delay is noticeable.
-3. **Distribution:** The onedir folder is zip-portable. Users can copy the folder, run `MonitorControl.exe` directly. No installer required.
-
-### config.json Path Resolution (Critical Code Change Required)
-
-The current `control_panel/__main__.py` passes `config_path="config.json"` (relative path). This resolves to `cwd`, which is:
-- Correct when run as `python -m control_panel` from the project root
-- Wrong when launched from autostart (cwd is typically `C:\Windows\System32` or the user's home directory)
-- Wrong when the packaged `.exe` is double-clicked from Explorer from a different directory
-
-The fix must be applied to `control_panel/__main__.py` before packaging:
-
-```python
-import os, sys
-
-def _resolve_config_path() -> str:
-    # sys.executable is the .exe path when frozen; __file__ otherwise
-    base = os.path.dirname(os.path.abspath(
-        sys.executable if getattr(sys, "frozen", False) else __file__
-    ))
-    return os.path.join(base, "config.json")
-```
-
-Pass `config_path=_resolve_config_path()` to `ControlPanelWindow`.
-
----
-
-## Autostart Implementation Pattern (HKCU winreg)
-
-### Registry Key Details
-
-```
-Hive:  HKEY_CURRENT_USER
-Path:  Software\Microsoft\Windows\CurrentVersion\Run
-Name:  MonitorControl
-Value: "C:\path\to\host_or_monitor_control.exe"  (REG_SZ)
-```
-
-### Read (check current state)
-
-```python
-import winreg
-
-def is_autostart_enabled(app_name: str) -> bool:
-    key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-            winreg.QueryValueEx(key, app_name)
-            return True
-    except FileNotFoundError:
-        return False
-    except OSError:
-        return False
-```
-
-### Write (enable)
-
-```python
-def enable_autostart(app_name: str, exe_path: str) -> None:
-    key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    with winreg.OpenKey(
-        winreg.HKEY_CURRENT_USER, key_path,
-        access=winreg.KEY_SET_VALUE
-    ) as key:
-        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
-```
-
-### Delete (disable)
-
-```python
-def disable_autostart(app_name: str) -> None:
-    key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, key_path,
-            access=winreg.KEY_SET_VALUE
-        ) as key:
-            winreg.DeleteValue(key, app_name)
-    except FileNotFoundError:
-        pass  # Already absent — treat as success
-```
-
-### Path to Register
-
-Point to the host executable. For the packaged scenario, this is the `host.exe` (or `MonitorControlHost.exe`). For the non-packaged scenario, this is `pythonw.exe <absolute_path_to_host/main.py>`. For v1.1 where only the control panel is packaged, use `pythonw.exe`:
-
-```
-"C:\Users\...\AppData\Local\Programs\Python\Python312\pythonw.exe" "E:\ClaudeCodeProjects\MonitorControl\host\main.py"
-```
-
-This must be an absolute path. `pythonw.exe` is used (not `python.exe`) to suppress the console window.
+Key insight: every comparable tool requires editing raw hex or CSS strings in config files with no GUI. MonitorControl's control panel is already a differentiator in this space. The color picker feature raises the UX bar without adding complexity beyond what the PyQt6 `QSlider` + `QLineEdit` + `QColor` APIs already support natively.
 
 ---
 
 ## Sources
 
-- [winreg — Python standard library docs](https://docs.python.org/3/library/winreg.html)
-- [Packaging PyQt6 applications for Windows, with PyInstaller and InstallForge — pythonguis.com](https://www.pythonguis.com/tutorials/packaging-pyqt6-applications-windows-pyinstaller/)
-- [Qt for Python: PyInstaller deployment — doc.qt.io](https://doc.qt.io/qtforpython-6/deployment/deployment-pyinstaller.html)
-- [PyInstaller — Using PyInstaller (usage flags)](https://pyinstaller.org/en/stable/usage.html)
-- [PyInstaller — Common Issues and Pitfalls](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html)
-- [PyInstaller — Recipe: Multiprocessing (Wiki)](https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing)
-- [PyInstaller — Issue #2028: Multiprocessing + --onefile on Windows](https://github.com/pyinstaller/pyinstaller/issues/2028)
-- [PyInstaller — Issue #3675: --noconsole flashes CMD window](https://github.com/pyinstaller/pyinstaller/issues/3675)
-- [Configure app to start at log-in — Windows Developer Blog (Microsoft)](https://blogs.windows.com/windowsdeveloper/2017/08/01/configure-app-start-log/)
-- [Configure Startup Applications in Windows — Microsoft Support](https://support.microsoft.com/en-us/windows/configure-startup-applications-in-windows-115a420a-0bff-4a6f-90e0-1934c844e473)
-- [StartupTask Class (WinRT UWP) — Microsoft Learn](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.startuptask?view=winrt-26100)
-- [PyInstaller onefile guide 2025 — ahmedsyntax.com](https://ahmedsyntax.com/pyinstaller-onefile/)
-- [Nuitka vs PyInstaller — coderslegacy.com](https://coderslegacy.com/nuitka-vs-pyinstaller/)
-- [Python Executable Generators — Sparx Engineering](https://sparxeng.com/blog/software/python-standalone-executable-generators-pyinstaller-nuitka-cx-freeze)
+- Codebase: `control_panel/main_window.py` — existing QLineEdit hex fields (lines 131–141, 299–301)
+- Codebase: `host/compositor.py` — hardcoded `#1a1a1a` background fill, BG-01 prerequisite (line 55)
+- Codebase: `widgets/calendar/widget.py` — hardcoded `_bg_color`, `_time_color`, `_text_color` (lines 36–38)
+- [tomfln/pyqt-colorpicker-widget](https://github.com/tomfln/pyqt-colorpicker-widget) — PyQt5/PyQt6 custom color picker (HSV canvas approach; circular/area design)
+- [tomfln/pyqt-colorpicker](https://github.com/tomfln/pyqt-colorpicker) — QDialog-based color picker; modal pattern (rejected for inline use)
+- [PySide6 QColorDialog](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QColorDialog.html) — Qt native dialog; modal, overkill for this use case
+- [PySide6 QColor](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QColor.html) — `QColor.fromHsv(h, s, v)` API for slider-to-swatch conversion
+- [Mobbin: Color Picker UI Design](https://mobbin.com/glossary/color-picker) — Design variants: palette, slider, wheel, area; slider is most compact
+- [Every Color Picker — Slider picker](https://everycolorpicker.com/pickers/slider-color-picker/) — Slider picker pattern reference
+- [yasb status bar](https://github.com/shadowash8/yasb) — PyQt6 Windows bar; CSS-only color config (no GUI picker)
+- [Rainmeter](https://www.rainmeter.net/) — Windows widget/skin bar; hex-in-config-file pattern
 
 ---
-*Feature research for: Desktop widget bar / utility display framework (MonitorControl)*
-*v1.1 addendum: autostart and .exe packaging*
+
+*Feature research for: MonitorControl v1.2 Configurable Colors*
 *Researched: 2026-03-27*
