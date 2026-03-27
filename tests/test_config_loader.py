@@ -58,12 +58,14 @@ def tmp_config_path(tmp_path):
 # --- config.json schema ---
 
 def test_config_json_valid_schema():
-    """config.json at project root has 'layout' and 'widgets' keys, first widget id is 'dummy'."""
+    """config.json at project root has 'layout' and 'widgets' keys with pomodoro + calendar entries."""
     with open("config.json", encoding="utf-8") as f:
         data = json.load(f)
     assert "layout" in data, "config.json must contain 'layout' key"
     assert "widgets" in data, "config.json must contain 'widgets' key"
-    assert data["widgets"][0]["id"] == "dummy", "First widget id must be 'dummy'"
+    widget_ids = [w["id"] for w in data["widgets"]]
+    assert "pomodoro" in widget_ids, "config.json must contain a 'pomodoro' widget (Phase 3)"
+    assert "calendar" in widget_ids, "config.json must contain a 'calendar' widget (Phase 3)"
 
 
 # --- ConfigUpdateMessage ---
