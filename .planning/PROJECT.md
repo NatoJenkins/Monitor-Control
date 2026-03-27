@@ -28,7 +28,7 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 - ✓ Calendar widget: styled date and time display (12h/24h configurable, locale-aware, no external calendar integration) — v1.0 (CAL-01..03)
 - ✓ Notification interceptor widget: surfaces Windows toast title/body/app name in bar; auto-dismiss after configurable timeout; WinRT polling approach — v1.0 (NOTF-01..05)
 - ✓ Config resolution is cwd-independent for all launch contexts (desktop double-click, HKCU Run key, pythonw.exe) — v1.1 (INFRA-01..02)
-- ✓ Host autostart at Windows login via HKCU Run key; Startup tab in control panel reads/writes registry live — v1.1 (STRT-01..05)
+- ✓ Host autostart at Windows login via Startup folder shortcut; Startup tab in control panel with immediate toggle — v1.1 (STRT-01..05)
 - ✓ Control panel packaged as standalone MonitorControl.exe (PyInstaller 6 onedir); no Python environment required — v1.1 (PKG-01..04)
 
 ### Active
@@ -101,7 +101,8 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 | RequestAccessAsync from Qt main thread | Widget subprocess has no STA apartment; call must happen before widget spawn | ✓ Good — confirmed required by Windows COM threading model |
 | proc.terminate() without join() in stop_widget | join() on Qt main thread deadlocks on Windows (queue pipe not being drained) | ⚠️ Revisit — IPC-03 spec language needs amendment |
 | %LOCALAPPDATA% for shared config path | Packaged exe and Python host must share config.json; exe dir ≠ project root during dev | ✓ Good — discovered during Phase 7 smoke test; both processes now use same file |
-| winreg stdlib for autostart (not pywin32) | winreg is a Python stdlib built-in on Windows; no additional dependency needed | ✓ Good — zero extra dependency, PyInstaller collects it automatically |
+| shell:startup shortcut for autostart (not HKCU Run key) | HKCU\Run + StartupApproved\Run is unreliable on Windows 11 — silently ignored despite correct registry state | ✓ Good — .lnk shortcut in Startup folder bypasses broken StartupApproved gate |
+| WM_DISPLAYCHANGE triggers full display re-discovery | Monitor power-cycle causes Windows to move host window; ClipCursor reapply alone is insufficient | ✓ Good — debounced re-find + reposition + reclip with 2s retry if display not yet available |
 | contents_directory='.' in PyInstaller spec | PyInstaller 6.0+ puts modules in _internal/ by default; breaks Path(__file__).parent.parent | ✓ Good — flat layout restores expected path resolution without code changes |
 
 ---

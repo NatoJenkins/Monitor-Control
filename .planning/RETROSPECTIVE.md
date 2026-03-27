@@ -60,7 +60,7 @@
 ### What Was Built
 
 1. `shared/paths.py` canonical config path module with `get_config_path()` using `%LOCALAPPDATA%\MonitorControl\config.json` — shared between packaged exe and Python host (Phase 5, evolved in Phase 7)
-2. HKCU Run key autostart via `winreg` stdlib — registry module, no-console launcher (`launch_host.pyw`), and Startup tab in the control panel with live registry read and immediate toggle (Phase 6)
+2. Startup folder shortcut autostart — `.lnk` in `shell:startup`, no-console launcher (`launch_host.pyw`), and Startup tab in the control panel with immediate toggle (Phase 6, reworked post-ship)
 3. Standalone `MonitorControl.exe` packaged with PyInstaller 6.19.0 onedir — no console window, custom blue "MC" icon (16/32/48/256px), reproducible `build/control_panel.spec` (Phase 7)
 
 ### What Worked
@@ -87,10 +87,38 @@
 2. **Document the dev vs. distribution topology explicitly in research.** Phase 7's research focused on the PyInstaller mechanics but did not address "where does config.json live when exe and host are in different directories during development?"
 3. **Write `one_liner` in SUMMARY.md at task completion time.** The field is empty in all v1.1 summaries. GSD milestone tooling depends on it for accomplishment extraction.
 
+### Post-Ship Bugs (discovered after v1.1 tag)
+
+**Bug 1: Packaged exe silently failed to enable autostart**
+- **Symptom:** Clicking "Start at login" in the packaged exe appeared to work (checkbox toggled) but nothing was written to the registry. Autostart never activated.
+- **Root cause:** `_build_command()` raised `RuntimeError` when `sys.frozen` was True (the exe can't derive `launch_host.pyw` location via `__file__`). The exception handler in `_on_autostart_toggled` only caught `OSError`, so the `RuntimeError` was silently eaten by Qt's signal dispatch. The checkbox showed as checked, the registry key was never written.
+- **Fix:** Persist the full command string to `%LOCALAPPDATA%\MonitorControl\host_command.txt` when autostart is enabled from the Python source. The frozen exe reads this file instead of deriving the path. Also catch `RuntimeError` alongside `OSError` in the toggle handler so failures show a dialog.
+- **Commits:** `a3965a5`, `b8fe518`
+
+**Bug 2: Windows 11 ignored HKCU Run key despite correct registry state**
+- **Symptom:** Registry key existed with correct command, `StartupApproved\Run` had `0x02` (enabled), all four policy keys (`SupportUwpStartupTasks`, etc.) were correct — but Windows Settings showed "Off" and the command was never executed on boot. No `launch.log` was created, confirming Windows never attempted to run it.
+- **Root cause:** Known Windows 11 reliability issue with the `HKCU\Run` + `StartupApproved\Run` mechanism. Extensive research identified profile corruption from KB updates, dynamic idle-wait delays (`Explorer\Serialize`), and Settings app caching as contributing factors. The exact trigger on this machine was not isolated, but the mechanism is documented across multiple Microsoft Q&A threads and community forums.
+- **Fix:** Abandoned the registry-based approach entirely. Switched to placing a `.lnk` shortcut in `shell:startup` (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`), which is processed by a different Explorer code path not subject to the StartupApproved gate. Old registry entries are cleaned up on every enable/disable call.
+- **Commit:** `ce808fc`
+
+**Bug 3: Host window moved to Monitor 1 after Monitor 2 power-cycle**
+- **Symptom:** When Monitor 2 turned off and back on, Windows rearranged the virtual desktop and moved the host window from Display 3 to Monitor 1. The host stayed on Monitor 1 permanently.
+- **Root cause:** The `WM_DISPLAYCHANGE` handler only reapplied `ClipCursor()` with the original coordinates — it never re-found Display 3 or repositioned the window. The window position and ClipCursor rect were computed once at startup and never updated.
+- **Fix:** On `WM_DISPLAYCHANGE` and session unlock, debounce (1.5s), then re-find Display 3 via `find_target_screen()`, reposition the window with `setGeometry()`, recompute the allowed cursor rect, and reapply `ClipCursor()`. Retry after 2s if Display 3 isn't available yet (still powering on).
+- **Commit:** `2dde26b`
+- **Note:** The brief flicker to Monitor 1 is expected — Windows moves the window before the debounce fires. The 1.5s delay ensures the display layout has stabilized before repositioning.
+
+### Key Lessons (Post-Ship)
+
+4. **Never trust the HKCU Run key on Windows 11 for autostart.** Use `shell:startup` shortcut instead. The registry approach has known reliability issues that are extremely difficult to diagnose — the registry looks correct but Windows silently refuses to execute.
+5. **Any UI toggle that modifies system state must show errors, never silently succeed.** The RuntimeError was swallowed because only `OSError` was caught. Every code path that changes registry/filesystem state should catch `Exception` and surface failures to the user.
+6. **`WM_DISPLAYCHANGE` must trigger full display re-discovery, not just ClipCursor reapplication.** Any host with display-dependent geometry needs to re-find its target screen and reposition after display topology changes.
+
 ### Cost Observations
 
 - Sessions: ~3 (one per phase, roughly; Phase 7 extended by the config path debugging)
-- Notable: Phase 7's checkpoint was the most valuable part of the milestone — the smoke test caught an architectural gap that automated tests would never have found.
+- Post-ship bug fixing: ~1 additional session covering 3 bugs discovered during real-world reboot testing
+- Notable: Phase 7's checkpoint was the most valuable part of the milestone — the smoke test caught an architectural gap that automated tests would never have found. The post-ship bugs reinforce that reboot-cycle testing should be part of the phase verification protocol for any startup/display feature.
 
 ---
 
@@ -108,4 +136,4 @@
 | Milestone | Phases hardware-verified | Hardware bugs caught |
 |-----------|--------------------------|----------------------|
 | v1.0      | 4/4                      | 3 (showFullScreen wrong monitor, WM_ACTIVATEAPP ClipCursor gap, WinRT IVectorView/None crash) |
-| v1.1      | 1/3 (Phase 7 only)       | 1 (config path mismatch between packaged exe and Python host) |
+| v1.1      | 1/3 (Phase 7 only)       | 4 (config path mismatch, silent autostart failure, Win11 Run key ignored, display reposition on power-cycle) |
