@@ -81,11 +81,11 @@ Plans:
   4. Calendar displays the correct day of week, full date, and time in the configured 12h or 24h format, updating each second
   5. Neither widget crashes the host when killed externally; no PyQt6 import errors appear in widget subprocess logs
 
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: WidgetBase contract, Pillow rendering pipeline, Pomodoro state machine and display
-- [ ] 03-02: Calendar widget, clock format config, bidirectional queue control signals
+- [ ] 03-01-PLAN.md — ControlSignal IPC schema, Pomodoro widget (state machine + Pillow rendering), Calendar widget (time/date display), config.json update, widget registration, unit tests
+- [ ] 03-02-PLAN.md — Command-file IPC watcher, control panel extensions (Pomodoro controls, font selectors, accent colors, shortcuts), hardware verification
 
 ### Phase 4: Notification Interceptor
 **Goal**: Windows toast notifications are read from the Action Center, surfaced in the notification slot with title/body/app name, and dismissible from the bar
@@ -132,4 +132,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-26 after Phase 2 hardware verification complete*
+*Last updated: 2026-03-26 after Phase 3 planning complete*
