@@ -194,3 +194,117 @@ def test_pushes_framedata():
     assert frame.width == 640
     assert frame.height == 515
     assert len(frame.rgba_bytes) == 640 * 515 * 4
+
+
+# ---------------------------------------------------------------------------
+# _safe_hex_color helper tests
+# ---------------------------------------------------------------------------
+
+class TestSafeHexColor:
+    """CLR-01: _safe_hex_color converts hex to RGBA tuple with fallback."""
+
+    def test_valid_hex_returns_rgba(self):
+        from widgets.calendar.widget import _safe_hex_color
+        assert _safe_hex_color("#ff0000", (0, 0, 0, 255)) == (255, 0, 0, 255)
+
+    def test_invalid_hex_returns_default(self):
+        from widgets.calendar.widget import _safe_hex_color
+        assert _safe_hex_color("notacolor", (1, 2, 3, 255)) == (1, 2, 3, 255)
+
+    def test_none_returns_default(self):
+        from widgets.calendar.widget import _safe_hex_color
+        assert _safe_hex_color(None, (10, 20, 30, 255)) == (10, 20, 30, 255)
+
+
+# ---------------------------------------------------------------------------
+# Color init tests
+# ---------------------------------------------------------------------------
+
+class TestCalendarColorInit:
+    """CAL-04, CAL-05: CalendarWidget reads color settings on init."""
+
+    def test_default_time_color(self):
+        w = make_widget()
+        assert w._time_color == (255, 255, 255, 255), f"Default time_color wrong: {w._time_color}"
+
+    def test_default_date_color(self):
+        w = make_widget()
+        assert w._text_color == (220, 220, 220, 255), f"Default date_color wrong: {w._text_color}"
+
+    def test_custom_time_color(self):
+        w = make_widget(settings={"clock_format": "24h", "font": "Inter", "time_color": "#ff0000"})
+        assert w._time_color == (255, 0, 0, 255), f"Custom time_color wrong: {w._time_color}"
+
+    def test_custom_date_color(self):
+        w = make_widget(settings={"clock_format": "24h", "font": "Inter", "date_color": "#00ff00"})
+        assert w._text_color == (0, 255, 0, 255), f"Custom date_color wrong: {w._text_color}"
+
+    def test_invalid_time_color_uses_default(self):
+        w = make_widget(settings={"clock_format": "24h", "font": "Inter", "time_color": "notacolor"})
+        assert w._time_color == (255, 255, 255, 255), f"Invalid time_color should default: {w._time_color}"
+
+    def test_invalid_date_color_uses_default(self):
+        w = make_widget(settings={"clock_format": "24h", "font": "Inter", "date_color": "xyz"})
+        assert w._text_color == (220, 220, 220, 255), f"Invalid date_color should default: {w._text_color}"
+
+
+# ---------------------------------------------------------------------------
+# Color update tests
+# ---------------------------------------------------------------------------
+
+class TestCalendarColorUpdate:
+    """CAL-04, CAL-05: CONFIG_UPDATE changes calendar text colors.
+
+    NOTE: These tests call poll_config_update() and apply update logic inline
+    rather than calling run() (which blocks). This correctly unit-tests the
+    color-update logic in isolation, but does NOT verify that run() actually
+    wires the handler. If run() is ever refactored to extract a separate
+    _apply_config_update() method, these tests should be updated to call that
+    method directly instead.
+    """
+
+    def test_config_update_changes_time_color(self):
+        from shared.message_schema import ConfigUpdateMessage
+        w = make_widget()
+        w.in_queue.put_nowait(ConfigUpdateMessage(
+            widget_id="test_cal",
+            config={"settings": {"time_color": "#0000ff"}},
+        ))
+        new_cfg = w.poll_config_update()
+        # Simulate run() handler
+        if new_cfg:
+            settings = new_cfg.get("settings", {})
+            if "time_color" in settings:
+                from widgets.calendar.widget import _safe_hex_color
+                w._time_color = _safe_hex_color(settings["time_color"], (255, 255, 255, 255))
+        assert w._time_color == (0, 0, 255, 255), f"time_color after update: {w._time_color}"
+
+    def test_config_update_changes_date_color(self):
+        from shared.message_schema import ConfigUpdateMessage
+        w = make_widget()
+        w.in_queue.put_nowait(ConfigUpdateMessage(
+            widget_id="test_cal",
+            config={"settings": {"date_color": "#ff00ff"}},
+        ))
+        new_cfg = w.poll_config_update()
+        if new_cfg:
+            settings = new_cfg.get("settings", {})
+            if "date_color" in settings:
+                from widgets.calendar.widget import _safe_hex_color
+                w._text_color = _safe_hex_color(settings["date_color"], (220, 220, 220, 255))
+        assert w._text_color == (255, 0, 255, 255), f"text_color after update: {w._text_color}"
+
+    def test_config_update_invalid_color_keeps_previous(self):
+        from shared.message_schema import ConfigUpdateMessage
+        w = make_widget()
+        w.in_queue.put_nowait(ConfigUpdateMessage(
+            widget_id="test_cal",
+            config={"settings": {"time_color": "bad"}},
+        ))
+        new_cfg = w.poll_config_update()
+        if new_cfg:
+            settings = new_cfg.get("settings", {})
+            if "time_color" in settings:
+                from widgets.calendar.widget import _safe_hex_color
+                w._time_color = _safe_hex_color(settings["time_color"], (255, 255, 255, 255))
+        assert w._time_color == (255, 255, 255, 255), "Invalid color should fall back to default"
