@@ -43,7 +43,8 @@ def _write_minimal_config(path):
 # Tests
 # ---------------------------------------------------------------------------
 
-def test_window_is_qmainwindow(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_window_is_qmainwindow(mock_enabled, qapp, tmp_path):
     """ControlPanelWindow is a QMainWindow subclass."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -53,7 +54,8 @@ def test_window_is_qmainwindow(qapp, tmp_path):
     window.close()
 
 
-def test_window_title(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_window_title(mock_enabled, qapp, tmp_path):
     """Window title is 'MonitorControl — Settings'."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -63,8 +65,9 @@ def test_window_title(qapp, tmp_path):
     window.close()
 
 
-def test_tabs_present(qapp, tmp_path):
-    """QTabWidget has 5 tabs: Layout, Pomodoro, Calendar, Notification, Shortcuts."""
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_tabs_present(mock_enabled, qapp, tmp_path):
+    """QTabWidget has 6 tabs: Layout, Pomodoro, Calendar, Notification, Shortcuts, Startup."""
     from control_panel.main_window import ControlPanelWindow
 
     config_path = _write_minimal_config(tmp_path)
@@ -72,16 +75,18 @@ def test_tabs_present(qapp, tmp_path):
 
     tabs = window._tabs
     assert isinstance(tabs, QTabWidget)
-    assert tabs.count() == 5
+    assert tabs.count() == 6
     assert tabs.tabText(0) == "Layout"
     assert tabs.tabText(1) == "Pomodoro"
     assert tabs.tabText(2) == "Calendar"
     assert tabs.tabText(3) == "Notification"
     assert tabs.tabText(4) == "Shortcuts"
+    assert tabs.tabText(5) == "Startup"
     window.close()
 
 
-def test_pomodoro_fields_present(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_pomodoro_fields_present(mock_enabled, qapp, tmp_path):
     """Pomodoro tab has QSpinBox fields with correct names and ranges."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -106,7 +111,8 @@ def test_pomodoro_fields_present(qapp, tmp_path):
     window.close()
 
 
-def test_calendar_clock_format_field(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_calendar_clock_format_field(mock_enabled, qapp, tmp_path):
     """Calendar tab has QComboBox for clock_format with items '12h' and '24h'."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -121,7 +127,8 @@ def test_calendar_clock_format_field(qapp, tmp_path):
     window.close()
 
 
-def test_save_button_exists(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_save_button_exists(mock_enabled, qapp, tmp_path):
     """Save button (_save_btn) exists with text 'Save'."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -133,7 +140,8 @@ def test_save_button_exists(qapp, tmp_path):
     window.close()
 
 
-def test_save_writes_config(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_save_writes_config(mock_enabled, qapp, tmp_path):
     """Clicking save writes valid JSON to config file."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -151,7 +159,8 @@ def test_save_writes_config(qapp, tmp_path):
     window.close()
 
 
-def test_load_values_populates_fields(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_load_values_populates_fields(mock_enabled, qapp, tmp_path):
     """Window loads config values into form fields at startup."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -163,7 +172,8 @@ def test_load_values_populates_fields(qapp, tmp_path):
     window.close()
 
 
-def test_pomodoro_controls_exist(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_pomodoro_controls_exist(mock_enabled, qapp, tmp_path):
     """Pomodoro tab has Start, Pause, Reset QPushButton controls."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -179,7 +189,8 @@ def test_pomodoro_controls_exist(qapp, tmp_path):
     window.close()
 
 
-def test_pomodoro_font_selector(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_pomodoro_font_selector(mock_enabled, qapp, tmp_path):
     """Pomodoro tab has font QComboBox with correct items."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -194,7 +205,8 @@ def test_pomodoro_font_selector(qapp, tmp_path):
     window.close()
 
 
-def test_pomodoro_accent_colors_load(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_pomodoro_accent_colors_load(mock_enabled, qapp, tmp_path):
     """Accent color QLineEdits are populated from config at startup."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -234,7 +246,8 @@ def test_pomodoro_accent_colors_load(qapp, tmp_path):
     window.close()
 
 
-def test_calendar_font_selector(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_calendar_font_selector(mock_enabled, qapp, tmp_path):
     """Calendar tab has font QComboBox with correct items."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -249,7 +262,8 @@ def test_calendar_font_selector(qapp, tmp_path):
     window.close()
 
 
-def test_shortcuts_tab_exists(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_shortcuts_tab_exists(mock_enabled, qapp, tmp_path):
     """Shortcuts tab exists with QLineEdit fields for start/pause/reset."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -262,7 +276,8 @@ def test_shortcuts_tab_exists(qapp, tmp_path):
     window.close()
 
 
-def test_collect_config_includes_new_fields(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_collect_config_includes_new_fields(mock_enabled, qapp, tmp_path):
     """_collect_config returns font, accent colors, and shortcuts keys."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -294,7 +309,8 @@ def test_collect_config_includes_new_fields(qapp, tmp_path):
     window.close()
 
 
-def test_send_pomo_command_writes_file(qapp, tmp_path):
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_send_pomo_command_writes_file(mock_enabled, qapp, tmp_path):
     """Clicking Start button calls write_pomodoro_command with 'start'."""
     from control_panel.main_window import ControlPanelWindow
 
@@ -328,13 +344,15 @@ def test_startup_tab_checkbox_exists(mock_enabled, qapp, tmp_path):
 
 @patch("control_panel.autostart.is_autostart_enabled", return_value=True)
 def test_startup_label_visible_when_checked(mock_enabled, qapp, tmp_path):
-    """Status label is visible when autostart is enabled (registry returns True)."""
+    """Status label is not hidden when autostart is enabled (registry returns True)."""
     from control_panel.main_window import ControlPanelWindow
 
     config_path = _write_minimal_config(tmp_path)
     window = ControlPanelWindow(config_path=config_path)
 
-    assert window._autostart_label.isVisible() is True
+    # isVisible() requires window to be shown; use not isHidden() to check
+    # widget-level visibility independent of parent hierarchy shown state.
+    assert not window._autostart_label.isHidden()
     window.close()
 
 
@@ -346,7 +364,7 @@ def test_startup_label_hidden_when_unchecked(mock_enabled, qapp, tmp_path):
     config_path = _write_minimal_config(tmp_path)
     window = ControlPanelWindow(config_path=config_path)
 
-    assert window._autostart_label.isVisible() is False
+    assert window._autostart_label.isHidden()
     window.close()
 
 

@@ -8,7 +8,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QGroupBox, QSpinBox, QComboBox, QPushButton,
-    QLabel, QMessageBox, QLineEdit, QListWidget,
+    QLabel, QMessageBox, QLineEdit, QListWidget, QCheckBox,
 )
 from PyQt6.QtGui import QShortcut, QKeySequence
 from control_panel.config_io import load_config, atomic_write_config, write_pomodoro_command
@@ -36,6 +36,7 @@ class ControlPanelWindow(QMainWindow):
         self._tabs.addTab(self._build_calendar_tab(), "Calendar")
         self._tabs.addTab(self._build_notification_tab(), "Notification")
         self._tabs.addTab(self._build_shortcuts_tab(), "Shortcuts")
+        self._tabs.addTab(self._build_startup_tab(), "Startup")
         root_layout.addWidget(self._tabs)
 
         # Save button row
@@ -240,6 +241,46 @@ class ControlPanelWindow(QMainWindow):
         layout.addStretch()
         return container
 
+    def _build_startup_tab(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        group = QGroupBox("Startup")
+        group_layout = QVBoxLayout(group)
+
+        self._autostart_checkbox = QCheckBox("Start MonitorControl at Windows login")
+        group_layout.addWidget(self._autostart_checkbox)
+
+        self._autostart_label = QLabel(
+            "MonitorControl will start automatically at next login"
+        )
+        self._autostart_label.setVisible(False)
+        group_layout.addWidget(self._autostart_label)
+
+        layout.addWidget(group)
+        layout.addStretch()
+
+        self._autostart_checkbox.toggled.connect(self._on_autostart_toggled)
+        return container
+
+    def _on_autostart_toggled(self, checked: bool) -> None:
+        from control_panel.autostart import enable_autostart, disable_autostart
+        try:
+            if checked:
+                enable_autostart()
+            else:
+                disable_autostart()
+            self._autostart_label.setVisible(checked)
+        except OSError as e:
+            QMessageBox.critical(
+                self, "Autostart Error",
+                f"Failed to update autostart setting:\n{e}"
+            )
+            # Revert checkbox to match actual registry state
+            from control_panel.autostart import is_autostart_enabled
+            self._autostart_checkbox.blockSignals(True)
+            self._autostart_checkbox.setChecked(is_autostart_enabled())
+            self._autostart_checkbox.blockSignals(False)
+
     def _load_values(self) -> None:
         """Populate form fields from self._config."""
         display = self._config.get("layout", {}).get("display", {})
@@ -286,6 +327,14 @@ class ControlPanelWindow(QMainWindow):
         self._shortcut_start.setKey(QKeySequence(shortcuts.get("pomodoro_start", "Ctrl+S")))
         self._shortcut_pause.setKey(QKeySequence(shortcuts.get("pomodoro_pause", "Ctrl+P")))
         self._shortcut_reset.setKey(QKeySequence(shortcuts.get("pomodoro_reset", "Ctrl+R")))
+
+        # Autostart (reads live HKCU registry state -- STRT-03)
+        from control_panel.autostart import is_autostart_enabled
+        enabled = is_autostart_enabled()
+        self._autostart_checkbox.blockSignals(True)
+        self._autostart_checkbox.setChecked(enabled)
+        self._autostart_checkbox.blockSignals(False)
+        self._autostart_label.setVisible(enabled)
 
     def _find_widget_settings(self, widget_type: str) -> dict:
         """Find settings dict for a widget type in config. Returns empty dict if not found."""
