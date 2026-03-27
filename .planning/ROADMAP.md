@@ -66,7 +66,7 @@ Plans:
   2. A v1.1 config.json with no `bg_color` key loads without error and renders the bar at #1a1a2e
   3. A v1.1 config.json with no `time_color` or `date_color` in the calendar settings block loads without error and renders calendar text at #ffffff and #dcdcdc respectively
   4. Manually setting `time_color` and `date_color` in the calendar settings block and saving causes calendar text colors to update without restarting the widget subprocess
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 09-01-PLAN.md — Wire bg_color through host hot-reload pipeline + update config.json schema
 - [ ] 09-02-PLAN.md — Add _safe_hex_color and config-driven colors to CalendarWidget
@@ -104,7 +104,7 @@ Plans:
 | 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
-| 9. Config Schema + Hot-Reload Wiring | v1.2 | 0/2 | Planned | - |
+| 9. Config Schema + Hot-Reload Wiring | 1/2 | In Progress|  | - |
 | 10. Control Panel Integration | v1.2 | 0/TBD | Not started | - |
 | 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
 

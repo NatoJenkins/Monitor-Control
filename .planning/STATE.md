@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Configurable Colors
-status: completed
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-03-27T21:30:32.314Z"
-last_activity: 2026-03-27 — 08-02 complete (host bg ownership + widget transparency)
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-27T22:00:37.783Z"
+last_activity: 2026-03-27 — 09-01 complete (bg_color config schema + hot-reload wiring)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 25
+  total_plans: 4
+  completed_plans: 3
+  percent: 38
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 ## Current Position
 
-Phase: 8 — Core Widget + Background Infrastructure
-Plan: 02 (complete)
-Status: Phase 08 complete — all 2 plans done
-Last activity: 2026-03-27 — 08-02 complete (host bg ownership + widget transparency)
+Phase: 9 — Config Schema + Host Hot-Reload Wiring
+Plan: 01 (complete)
+Status: Phase 09 in progress — 1 of 2 plans done
+Last activity: 2026-03-27 — 09-01 complete (bg_color config schema + hot-reload wiring)
 
-Progress: [██░░░░░░░░] 25%
+Progress: [███░░░░░░░] 38%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [██░░░░░░░░] 25%
 | Phase 07 P01 | ~45min | 3 tasks | 8 files |
 | Phase 08 P01 | 4 | 2 tasks | 2 files |
 | Phase 08 P02 | 3 | 2 tasks | 5 files |
+| Phase 09 P01 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Progress: [██░░░░░░░░] 25%
 - [Phase 08-01]: sliderReleased (not valueChanged) connected to _emit_color_changed — programmatic setValue() in _sync_all_from_state() does not trigger emissions
 - [Phase 08-02]: set_bg_color() uses QColor.isValid() to reject invalid hex strings — leaves _bg_qcolor unchanged, consistent with QColor validation pattern from 08-01
 - [Phase 08-02]: All four file changes (host fill + 3 widget transparency) committed atomically — partial migration silently overwrites host fill on every compositor pass
+- [Phase 09-01]: ConfigLoader constructed without after_reload; _after_reload assigned post-construction to avoid forward reference — config_loader must be bound before lambda can close over it
+- [Phase 09-01]: reapply_clip() called first in _after_reload to preserve HOST-04 behavior before bg_color update
+- [Phase 09-01]: window.set_bg_color() called between load() and apply_config() on initial startup — bg renders before widgets are composited
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27T21:25:30Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-03-27T21:58:47Z
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
