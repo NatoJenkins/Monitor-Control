@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: Startup & Distribution
 status: completed
 stopped_at: Completed 07-01-PLAN.md (Phase 7 Plan 01 — control panel packaging)
-last_updated: "2026-03-27T14:30:00.000Z"
+last_updated: "2026-03-27T15:05:09.472Z"
 last_activity: 2026-03-27 — Phase 7 Plan 01 executed (PyInstaller packaging, custom icon, LOCALAPPDATA config path)
 progress:
   total_phases: 3
