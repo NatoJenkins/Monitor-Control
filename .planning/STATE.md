@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Configurable Colors
-status: active
-stopped_at: null
-last_updated: "2026-03-27"
+status: completed
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-27T21:21:16.585Z"
 last_activity: 2026-03-27 — v1.2 roadmap created (Phases 8–11)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P01 | ~30min | 4 tasks | 6 files |
 | Phase 06 P01 | 5 | 4 tasks | 5 files |
 | Phase 07 P01 | ~45min | 3 tasks | 8 files |
+| Phase 08 P01 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Progress: [░░░░░░░░░░] 0%
 - [v1.2 Roadmap]: QColor.hslHueF() returns -1 for achromatic colors — track _hue separately in ColorPickerWidget state
 - [v1.2 Roadmap]: All new config keys use .get() with exact hardcoded defaults — never bracket access on new keys (CLR-01)
 - [v1.2 Roadmap]: Widget subprocesses use PIL.ImageColor.getrgb() for hex-to-RGBA; must be wrapped in _safe_hex_color() fallback to prevent subprocess crash on invalid config
+- [Phase 08-01]: QColor.fromHslF used exclusively over colorsys — eliminates HLS argument-order trap, no new pip dependencies
+- [Phase 08-01]: _hue stored as private float independent of QColor.hslHueF() — QColor returns -1 for achromatic colors, tracking separately preserves hue across gray round-trips
+- [Phase 08-01]: sliderReleased (not valueChanged) connected to _emit_color_changed — programmatic setValue() in _sync_all_from_state() does not trigger emissions
 
 ### Pending Todos
 
@@ -88,6 +92,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27
-Stopped at: null
+Last session: 2026-03-27T21:21:16.582Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None

@@ -52,7 +52,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   3. The widget emits color_changed(str) exactly once per user interaction (drag end or valid hex entry), never on programmatic set_color() calls
   4. The host bar background is filled with a solid QColor via paintEvent using self.rect() — no widget renders its own background fill
   5. The bar is visually identical to v1.1 at the default color (#1a1a2e) with the host-owned fill active
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 08-01-PLAN.md — Build ColorPickerWidget with TDD (hue/intensity sliders, swatch, hex input, signal behavior)
 - [ ] 08-02-PLAN.md — Atomic background migration (host bg fill + widget transparency)
@@ -100,7 +100,7 @@ Plans:
 | 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
-| 8. Core Widget + Background Infrastructure | v1.2 | 0/2 | Planning | - |
+| 8. Core Widget + Background Infrastructure | 1/2 | In Progress|  | - |
 | 9. Config Schema + Hot-Reload Wiring | v1.2 | 0/TBD | Not started | - |
 | 10. Control Panel Integration | v1.2 | 0/TBD | Not started | - |
 | 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
