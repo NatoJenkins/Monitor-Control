@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 current_plan: 2 / 2 (COMPLETE)
 status: IN_PROGRESS
-last_updated: "2026-03-27T03:44:11Z"
+last_updated: "2026-03-26T00:00:00Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
   completed_plans: 7
 ---
@@ -15,16 +15,16 @@ progress:
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 3 Plan 02 complete (Tasks 1-2); hardware verification checkpoint pending
+`IN_PROGRESS` — Phase 3 complete (hardware verified); ready for Phase 4
 
 ## Current Phase
-Phase 3 — Pomodoro + Calendar Widgets
-Current Plan: 2 / 2 (COMPLETE — pending hardware verify)
+Phase 4 — Notifications Widget
+Current Plan: 0 / TBD
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
 [##########] Phase 2 complete — hardware verified (2/2 plans)
-[██████████] Phase 3 tasks complete (2/2 plans, hardware verify pending)
+[##########] Phase 3 complete — hardware verified (2/2 plans)
 
 ## Milestone
 v1.0 — initial release
@@ -32,15 +32,16 @@ v1.0 — initial release
 ## Completed Phases
 - Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
 - Phase 2 — Config System + Control Panel (completed 2026-03-26, hardware verified)
+- Phase 3 — Pomodoro + Calendar Widgets (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-27 — Completed Phase 3 Plan 02 (Tasks 1-2): Pomodoro command-file IPC wired end-to-end (write_pomodoro_command -> directoryChanged watcher -> send_control_signal). Control panel extended with Start/Pause/Reset buttons, font selectors, accent color editors, Shortcuts tab, QShortcut bindings. 86 tests passing (1 pre-existing flaky e2e test excluded).
+2026-03-26 — Completed Phase 3 Plan 02 fully (all 3 tasks): hardware verified on Display 3, fixed alt-tab mouse containment bug (WM_ACTIVATEAPP deactivate path now re-applies ClipCursor). 88 tests passing.
 
 ## Stopped At
-Phase 3 — 03-02-PLAN.md Tasks 1-2 complete; Task 3 (hardware verification checkpoint) requires user action on Display 3.
+Phase 3 complete. Next: Phase 4 (Notifications widget — WinRT async spike first).
 
 ## Next Action
-Hardware verification: run `python -m host.main` and `python -m control_panel.main`, verify both widgets on Display 3, test Start/Pause/Reset IPC, confirm config changes propagate.
+Begin Phase 4: WinRT async subprocess spike, then build notifications widget.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -80,6 +81,7 @@ Hardware verification: run `python -m host.main` and `python -m control_panel.ma
 - [Phase 03]: Watch config directory with directoryChanged (not file with fileChanged) — QFileSystemWatcher.addPath() returns False for non-existent paths; directory watching catches first pomodoro_command.json creation. (03-02)
 - [Phase 03]: window._cmd_watcher = cmd_watcher stored at window level for GC prevention — same pattern as Win32MessageFilter. (03-02)
 - [Phase 03]: write_pomodoro_command uses tempfile.mkstemp(dir=same_dir) for same-filesystem atomic rename guarantee on Windows. (03-02)
+- [Phase 03]: WM_ACTIVATEAPP deactivate (wParam=0) also re-applies ClipCursor — Windows calls ClipCursor(NULL) when a different app gains focus; both activate and deactivate paths now trigger on_clip_needed() so mouse containment persists across alt-tab. (03-02 bug fix)
 
 ## Blockers
 None
