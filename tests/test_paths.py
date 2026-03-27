@@ -22,10 +22,13 @@ def test_get_config_path_cwd_independent(tmp_path, monkeypatch):
     assert before == after
 
 
-def test_get_config_path_parent_contains_host_dir():
+def test_get_config_path_in_localappdata():
     from shared.paths import get_config_path
-    root = get_config_path().parent
-    assert (root / "host").is_dir(), f"Expected 'host' dir inside {root}"
+    import os
+    appdata = Path(os.environ["LOCALAPPDATA"])
+    p = get_config_path()
+    assert appdata in p.parents, f"Expected config inside LOCALAPPDATA, got {p}"
+    assert "MonitorControl" in p.parts, f"Expected MonitorControl subdir, got {p}"
 
 
 def test_no_bare_config_strings_in_host_main():

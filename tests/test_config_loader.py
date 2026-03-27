@@ -58,8 +58,9 @@ def tmp_config_path(tmp_path):
 # --- config.json schema ---
 
 def test_config_json_valid_schema():
-    """config.json at project root has 'layout' and 'widgets' keys with pomodoro + calendar entries."""
-    with open("config.json", encoding="utf-8") as f:
+    """config.json has 'layout' and 'widgets' keys with pomodoro + calendar entries."""
+    from shared.paths import get_config_path
+    with open(get_config_path(), encoding="utf-8") as f:
         data = json.load(f)
     assert "layout" in data, "config.json must contain 'layout' key"
     assert "widgets" in data, "config.json must contain 'widgets' key"
