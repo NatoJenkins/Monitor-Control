@@ -1,4 +1,5 @@
 {
+  "bg_color": "#1a1a2e",
   "layout": {
     "display": {
       "width": 1920,
@@ -33,7 +34,9 @@
       "height": 515,
       "settings": {
         "clock_format": "12h",
-        "font": "Inter"
+        "font": "Inter",
+        "time_color": "#ffffff",
+        "date_color": "#dcdcdc"
       }
     },
     {

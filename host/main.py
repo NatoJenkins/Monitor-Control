@@ -135,9 +135,16 @@ def main():
 
     pm = ProcessManager()
     _cfg = get_config_path()
-    config_loader = ConfigLoader(str(_cfg), pm, window.compositor, after_reload=reapply_clip)
+    config_loader = ConfigLoader(str(_cfg), pm, window.compositor)
     config = config_loader.load()
+    window.set_bg_color(config.get("bg_color", "#1a1a2e"))
     config_loader.apply_config(config)
+
+    def _after_reload():
+        reapply_clip()
+        window.set_bg_color(config_loader.current_config.get("bg_color", "#1a1a2e"))
+
+    config_loader._after_reload = _after_reload
 
     # --- Command-file watcher for Pomodoro controls (POMO-04) ---
     config_dir = str(_cfg.parent)
