@@ -1,24 +1,24 @@
 # control_panel/autostart.py
 """Read/write HKCU Run registry key for MonitorControl autostart."""
-import os
 import sys
 import winreg
-from shared.paths import get_config_path
+from pathlib import Path
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 _VALUE_NAME = "MonitorControl"
 
 
-def _get_pythonw() -> str:
-    """Return the absolute path to pythonw.exe alongside the running python.exe."""
-    return os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-
-
 def _build_command() -> str:
     """Build the Run key command value: quoted pythonw.exe + quoted launch_host.pyw."""
-    pythonw = _get_pythonw()
-    project_root = str(get_config_path().parent)
-    launch_script = os.path.join(project_root, "launch_host.pyw")
+    if getattr(sys, "frozen", False):
+        raise RuntimeError(
+            "Autostart must be configured from the Python source installation — "
+            "the packaged control panel cannot locate launch_host.pyw."
+        )
+    # autostart.py lives at <project_root>/control_panel/autostart.py
+    project_root = Path(__file__).resolve().parent.parent
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    launch_script = project_root / "launch_host.pyw"
     return f'"{pythonw}" "{launch_script}"'
 
 
