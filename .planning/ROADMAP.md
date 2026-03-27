@@ -37,7 +37,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 - [x] **Phase 8: Core Widget + Background Infrastructure** — Build ColorPickerWidget and atomically migrate host/widget background ownership (completed 2026-03-27)
 - [x] **Phase 9: Config Schema + Host Hot-Reload Wiring** — Wire bg_color and calendar color keys through config into the live bar (completed 2026-03-27)
-- [ ] **Phase 10: Control Panel Integration** — Replace Pomodoro hex fields and add Calendar color pickers
+- [x] **Phase 10: Control Panel Integration** — Replace Pomodoro hex fields and add Calendar color pickers (completed 2026-03-27)
 - [ ] **Phase 11: Layout Tab bg_color Picker** — Expose bg_color in the control panel and close the end-to-end user flow
 
 ## Phase Details
@@ -80,7 +80,7 @@ Plans:
   2. Adjusting a Pomodoro color picker and clicking Save causes the Pomodoro widget to update its accent color live without a host restart
   3. Opening the Calendar tab shows two ColorPickerWidget instances for time color and date color; each is pre-populated with the current value from config
   4. Adjusting a Calendar color picker and clicking Save causes the calendar text to update live without a host restart
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 10-01-PLAN.md — Replace Pomodoro QLineEdit fields with ColorPickerWidgets and add Calendar color pickers (TDD)
 
@@ -107,7 +107,7 @@ Plans:
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 9. Config Schema + Hot-Reload Wiring | v1.2 | 2/2 | Complete | 2026-03-27 |
-| 10. Control Panel Integration | v1.2 | 0/1 | Not started | - |
+| 10. Control Panel Integration | 1/1 | Complete   | 2026-03-27 | - |
 | 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
 
 ---

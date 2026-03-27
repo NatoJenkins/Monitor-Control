@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Configurable Colors
 status: completed
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-03-27T22:42:11.862Z"
-last_activity: 2026-03-27 — 09-02 complete (calendar time_color/date_color config-driven via _safe_hex_color)
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-27T23:50:43.927Z"
+last_activity: 2026-03-27 — 10-01 complete (ColorPickerWidget integrated into Pomodoro and Calendar tabs, POMO-06 and CAL-06 closed)
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 3
+  total_plans: 5
+  completed_plans: 5
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 ## Current Position
 
-Phase: 9 — Config Schema + Host Hot-Reload Wiring
-Plan: 02 (complete)
-Status: Phase 09 complete — 2 of 2 plans done
-Last activity: 2026-03-27 — 09-02 complete (calendar time_color/date_color config-driven via _safe_hex_color)
+Phase: 10 — Control Panel Integration
+Plan: 01 (complete)
+Status: Phase 10 complete — 1 of 1 plans done
+Last activity: 2026-03-27 — 10-01 complete (ColorPickerWidget integrated into Pomodoro and Calendar tabs, POMO-06 and CAL-06 closed)
 
 Progress: [██████████] 100%
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100%
 | Phase 08 P02 | 3 | 2 tasks | 5 files |
 | Phase 09 P01 | 2min | 2 tasks | 3 files |
 | Phase 09 P02 | 2 | 2 tasks | 2 files |
+| Phase 10 P01 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ Progress: [██████████] 100%
 - [Phase 09-01]: reapply_clip() called first in _after_reload to preserve HOST-04 behavior before bg_color update
 - [Phase 09-01]: window.set_bg_color() called between load() and apply_config() on initial startup — bg renders before widgets are composited
 - [Phase 09-02]: _safe_hex_color except clause must include TypeError — PIL.ImageColor.getrgb() raises TypeError on None input (calls len() on arg), not AttributeError
+- [Phase 10]: No color_changed signal wiring to save — user clicks Save, _collect_config reads .color() atomically; hot-reload handles widget update without live preview wiring
+- [Phase 10]: Calendar _collect_config dict must include all 4 keys (clock_format, font, time_color, date_color) — _update_widget_settings does full overwrite, omitting keys silently drops them on every Save
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27T22:05:17.132Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-03-27T23:50:43.923Z
+Stopped at: Completed 10-01-PLAN.md
 Resume file: None
