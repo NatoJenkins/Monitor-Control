@@ -13,10 +13,18 @@ class HostWindow(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
+        self._bg_qcolor = QColor("#1a1a2e")   # default matches v1.1 hardcoded value
         self.compositor = Compositor(self)
+
+    def set_bg_color(self, hex_str: str) -> None:
+        """Update background color. Called from host after config reload."""
+        color = QColor(hex_str)
+        if color.isValid():
+            self._bg_qcolor = color
+            self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#000000"))  # background
+        painter.fillRect(self.rect(), self._bg_qcolor)   # self.rect() not event.rect()
         self.compositor.paint(painter)
         painter.end()

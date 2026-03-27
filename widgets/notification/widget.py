@@ -43,7 +43,6 @@ class NotificationWidget(WidgetBase):
         self._last_notif_id = None       # ID of the notification currently shown (or last seen)
 
         # Colors (same dark palette as CalendarWidget)
-        self._bg_color = (26, 26, 46, 255)          # #1a1a2e
         self._text_color = (220, 220, 220, 255)
         self._muted_color = (140, 140, 160, 255)
         self._title_color = (255, 255, 255, 255)
@@ -131,7 +130,7 @@ class NotificationWidget(WidgetBase):
     def _render_notification(self, app_name: str, title: str, body: str, timestamp: str) -> FrameData:
         """Render a notification card with app name, title, body, and timestamp."""
         W, H = self._width, self._height
-        img = Image.new("RGBA", (W, H), self._bg_color)
+        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
         font_small = _load_font(self._font_name, 18)
@@ -205,7 +204,7 @@ class NotificationWidget(WidgetBase):
     def _render_idle(self) -> FrameData:
         """Render the idle bell icon state (no active notification)."""
         W, H = self._width, self._height
-        img = Image.new("RGBA", (W, H), self._bg_color)
+        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
         cx, cy = W // 2, H // 2
@@ -237,7 +236,7 @@ class NotificationWidget(WidgetBase):
     def _render_permission_placeholder(self) -> FrameData:
         """Render a placeholder when notification permission is not ALLOWED."""
         W, H = self._width, self._height
-        img = Image.new("RGBA", (W, H), self._bg_color)
+        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
         font_medium = _load_font(self._font_name, 28)

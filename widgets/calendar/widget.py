@@ -33,7 +33,6 @@ class CalendarWidget(WidgetBase):
         settings = config.get("settings", {})
         self._clock_format = settings.get("clock_format", "24h")
         self._font_name = settings.get("font", "Inter")
-        self._bg_color = (26, 26, 46, 255)  # #1a1a2e
         self._text_color = (220, 220, 220, 255)
         self._time_color = (255, 255, 255, 255)
 
@@ -48,7 +47,7 @@ class CalendarWidget(WidgetBase):
 
     def render_frame(self) -> FrameData:
         W, H = self._width, self._height
-        img = Image.new("RGBA", (W, H), self._bg_color)
+        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
         now = datetime.datetime.now()

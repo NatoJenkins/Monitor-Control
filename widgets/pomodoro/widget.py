@@ -65,7 +65,6 @@ class PomodoroWidget(WidgetBase):
         self._work_color = settings.get("work_accent_color", "#ff4444")
         self._short_break_color = settings.get("short_break_accent_color", "#44ff44")
         self._long_break_color = settings.get("long_break_accent_color", "#4488ff")
-        self._bg_color = (26, 26, 46, 255)  # #1a1a2e
 
         self._state = PomodoroState.IDLE
         self._remaining_secs = self._work_secs  # frozen in IDLE
@@ -209,7 +208,7 @@ class PomodoroWidget(WidgetBase):
     def render_frame(self) -> FrameData:
         """Render current state to a Pillow RGBA image and return as FrameData."""
         W, H = self._width, self._height
-        img = Image.new("RGBA", (W, H), self._bg_color)
+        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
         label = _STATE_LABELS.get(self._state, "Focus")
