@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Startup & Distribution
-status: completed
-stopped_at: Completed 07-01-PLAN.md (Phase 7 Plan 01 — control panel packaging)
-last_updated: "2026-03-27T15:22:15.201Z"
-last_activity: 2026-03-27 — Phase 7 Plan 01 executed (PyInstaller packaging, custom icon, LOCALAPPDATA config path)
+milestone: v1.2
+milestone_name: Configurable Colors
+status: active
+stopped_at: null
+last_updated: "2026-03-27"
+last_activity: 2026-03-27 — Milestone v1.2 started
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Keep productivity tooling off the primary monitors — widgets run persistently in a dedicated display the cursor cannot enter, requiring zero window management from the user.
-**Current focus:** v1.1 COMPLETE — all phases done
+**Current focus:** v1.2 Configurable Colors — defining requirements
 
 ## Current Position
 
-Phase: 7 of 7 (Control Panel Packaging) — COMPLETE
-Plan: 1 of 1 in current phase (COMPLETE)
-Status: v1.1 milestone complete — MonitorControl.exe distributed as standalone folder
-Last activity: 2026-03-27 — Phase 7 Plan 01 executed (PyInstaller packaging, custom icon, LOCALAPPDATA config path)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-27 — Milestone v1.2 started
 
-Progress: [██████████] 100% (v1.1 — 3/3 phases complete)
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -82,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27T14:30:00.000Z
-Stopped at: Completed 07-01-PLAN.md (Phase 7 Plan 01 — control panel packaging)
+Last session: 2026-03-27
+Stopped at: null
 Resume file: None

@@ -1,6 +1,17 @@
 # MonitorControl
 
-## Current State: v1.1 Shipped
+## Current Milestone: v1.2 Configurable Colors
+
+**Goal:** Replace all hardcoded colors with a user-configurable color system exposed through the control panel via a reusable hue/intensity color picker widget.
+
+**Target features:**
+- Bar background color owned by host compositor (not widgets), configurable via `bg_color`
+- Calendar text colors (`time_color`, `date_color`) configurable per-widget
+- Pomodoro accent color pickers replace existing hex QLineEdit fields
+- Reusable `ColorPickerWidget` with hue/intensity sliders, live swatch, hex input fallback
+- All defaults match current hardcoded values — zero visual change on upgrade
+
+## Previous State: v1.1 Shipped
 
 **Shipped:** 2026-03-27
 **Milestone:** v1.1 Startup & Distribution — autostart on login, standalone control panel .exe
@@ -33,7 +44,17 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 
 ### Active
 
-<!-- Backlog — candidates for v1.2 -->
+<!-- v1.2 — Configurable Colors -->
+- [ ] Host compositor owns bar background fill; widgets render on transparent background (BG-01)
+- [ ] Bar background color configurable via top-level `bg_color` in config.json (BG-02)
+- [ ] Control panel exposes `bg_color` picker in Layout tab (BG-03)
+- [ ] Calendar `time_color` and `date_color` configurable via widget settings block (CAL-04..05)
+- [ ] Calendar tab gains color pickers for time and date colors (CAL-06)
+- [ ] Pomodoro accent color hex fields replaced with ColorPickerWidget (POMO-06)
+- [ ] Reusable ColorPickerWidget: hue/intensity sliders, fixed saturation, live swatch, hex input (CPKR-01)
+- [ ] All color defaults match current hardcoded values — zero visual change on upgrade (CLR-01)
+
+<!-- Backlog — deferred beyond v1.2 -->
 - [ ] Pomodoro plays an audio cue at each phase transition (PLSH-01)
 - [ ] Widget crash detection with visual placeholder and control panel restart button (PLSH-02)
 - [ ] Notification widget shows scrollable queue of multiple simultaneous toasts (PLSH-03)
@@ -106,4 +127,4 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 | contents_directory='.' in PyInstaller spec | PyInstaller 6.0+ puts modules in _internal/ by default; breaks Path(__file__).parent.parent | ✓ Good — flat layout restores expected path resolution without code changes |
 
 ---
-*Last updated: 2026-03-27 after v1.1 milestone*
+*Last updated: 2026-03-27 after v1.2 milestone start*
