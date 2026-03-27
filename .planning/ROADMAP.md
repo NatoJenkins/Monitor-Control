@@ -37,10 +37,10 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   1. Host and control panel each find config.json correctly when launched from any directory (e.g., double-clicked from Desktop or launched via registry Run key from C:\Windows\System32 cwd)
   2. Host process starts without crashing when run via pythonw.exe (sys.stdout and sys.stderr are None — all print() calls must not raise AttributeError)
   3. `shared/paths.py` provides `get_config_path()` consumed by both `host/main.py` and `control_panel/__main__.py` — no bare "config.json" strings remain in either entry point
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01-PLAN.md — TDD: shared/paths.py + startup null-guard + entry point updates
 
 ### Phase 6: Autostart Toggle
 **Goal**: Users can enable and disable host autostart at Windows login from the control panel, with no terminal visible at launch
@@ -80,10 +80,10 @@ Plans:
 | 2. Config System + Control Panel | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 3. Pomodoro + Calendar Widgets | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 4. Notification Interceptor | v1.0 | 2/2 | Complete | 2026-03-27 |
-| 5. Path Resolution & Freeze Safety | v1.1 | 0/? | Not started | - |
+| 5. Path Resolution & Freeze Safety | v1.1 | 0/1 | In progress | - |
 | 6. Autostart Toggle | v1.1 | 0/? | Not started | - |
 | 7. Control Panel Packaging | v1.1 | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 after v1.1 roadmap created (Phases 5–7)*
+*Last updated: 2026-03-27 after Phase 5 planning complete (1 plan)*
