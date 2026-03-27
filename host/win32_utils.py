@@ -10,7 +10,9 @@ _user32 = ctypes.windll.user32
 WM_WTSSESSION_CHANGE = 0x02B1
 WTS_SESSION_UNLOCK = 0x8
 WTS_SESSION_LOCK = 0x7
+WM_ACTIVATE = 0x0006
 WM_ACTIVATEAPP = 0x001C
+WA_INACTIVE = 0
 
 
 class RECT(ctypes.Structure):
@@ -76,6 +78,12 @@ class Win32MessageFilter(QAbstractNativeEventFilter):
                 # for the newly-focused app; intercepting the deactivate message and
                 # immediately re-applying the clip restores containment.
                 self._on_clip_needed()
+            elif msg.message == WM_ACTIVATE:
+                # WM_ACTIVATEAPP is NOT sent when the Windows Start menu opens because
+                # the shell is not a standard application window. WM_ACTIVATE fires in
+                # that case, so re-apply clip on deactivation (LOWORD of wParam == 0).
+                if (msg.wParam & 0xFFFF) == WA_INACTIVE:
+                    self._on_clip_needed()
         return False, 0
 
 
