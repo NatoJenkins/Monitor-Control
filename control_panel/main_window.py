@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QShortcut, QKeySequence
 from control_panel.config_io import load_config, atomic_write_config, write_pomodoro_command
+from control_panel.color_picker import ColorPickerWidget
 
 
 class ControlPanelWindow(QMainWindow):
@@ -128,16 +129,13 @@ class ControlPanelWindow(QMainWindow):
         self._pomo_font.addItems(["Inter", "Digital-7", "Share Tech Mono"])
         appear_form.addRow("Font:", self._pomo_font)
 
-        self._pomo_work_color = QLineEdit()
-        self._pomo_work_color.setPlaceholderText("#ff4444")
+        self._pomo_work_color = ColorPickerWidget()
         appear_form.addRow("Work Color:", self._pomo_work_color)
 
-        self._pomo_short_break_color = QLineEdit()
-        self._pomo_short_break_color.setPlaceholderText("#44ff44")
+        self._pomo_short_break_color = ColorPickerWidget()
         appear_form.addRow("Short Break Color:", self._pomo_short_break_color)
 
-        self._pomo_long_break_color = QLineEdit()
-        self._pomo_long_break_color.setPlaceholderText("#4488ff")
+        self._pomo_long_break_color = ColorPickerWidget()
         appear_form.addRow("Long Break Color:", self._pomo_long_break_color)
 
         layout.addWidget(appear_group)
@@ -157,6 +155,12 @@ class ControlPanelWindow(QMainWindow):
         self._cal_font = QComboBox()
         self._cal_font.addItems(["Inter", "Digital-7", "Share Tech Mono"])
         form.addRow("Font:", self._cal_font)
+
+        self._cal_time_color = ColorPickerWidget()
+        form.addRow("Time Color:", self._cal_time_color)
+
+        self._cal_date_color = ColorPickerWidget()
+        form.addRow("Date Color:", self._cal_date_color)
 
         layout.addWidget(group)
         layout.addStretch()
@@ -296,9 +300,9 @@ class ControlPanelWindow(QMainWindow):
 
         # Pomodoro appearance
         self._pomo_font.setCurrentText(pomo_cfg.get("font", "Inter"))
-        self._pomo_work_color.setText(pomo_cfg.get("work_accent_color", "#ff4444"))
-        self._pomo_short_break_color.setText(pomo_cfg.get("short_break_accent_color", "#44ff44"))
-        self._pomo_long_break_color.setText(pomo_cfg.get("long_break_accent_color", "#4488ff"))
+        self._pomo_work_color.set_color(pomo_cfg.get("work_accent_color", "#ff4444"))
+        self._pomo_short_break_color.set_color(pomo_cfg.get("short_break_accent_color", "#44ff44"))
+        self._pomo_long_break_color.set_color(pomo_cfg.get("long_break_accent_color", "#4488ff"))
 
         cal_cfg = self._find_widget_settings("calendar")
         clock_fmt = cal_cfg.get("clock_format", "24h")
@@ -308,6 +312,10 @@ class ControlPanelWindow(QMainWindow):
 
         # Calendar font
         self._cal_font.setCurrentText(cal_cfg.get("font", "Inter"))
+
+        # Calendar colors
+        self._cal_time_color.set_color(cal_cfg.get("time_color", "#ffffff"))
+        self._cal_date_color.set_color(cal_cfg.get("date_color", "#dcdcdc"))
 
         # Notification settings
         notif_cfg = self._find_widget_settings("notification")
@@ -356,15 +364,17 @@ class ControlPanelWindow(QMainWindow):
             "long_break_minutes": self._pomo_long_break.value(),
             "cycles_before_long_break": self._pomo_cycles.value(),
             "font": self._pomo_font.currentText(),
-            "work_accent_color": self._pomo_work_color.text(),
-            "short_break_accent_color": self._pomo_short_break_color.text(),
-            "long_break_accent_color": self._pomo_long_break_color.text(),
+            "work_accent_color": self._pomo_work_color.color(),
+            "short_break_accent_color": self._pomo_short_break_color.color(),
+            "long_break_accent_color": self._pomo_long_break_color.color(),
         })
 
         # Update or create calendar widget settings
         self._update_widget_settings(config, "calendar", {
             "clock_format": self._clock_format.currentText(),
             "font": self._cal_font.currentText(),
+            "time_color": self._cal_time_color.color(),
+            "date_color": self._cal_date_color.color(),
         })
 
         # Update notification widget settings
