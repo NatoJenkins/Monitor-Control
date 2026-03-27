@@ -2,3 +2,6 @@ PyQt6==6.10.2
 pywin32==311
 pytest>=8.0
 pytest-mock>=3.12
+winrt-Windows.UI.Notifications.Management==3.2.1
+winrt-Windows.UI.Notifications==3.2.1
+winrt-runtime==3.2.1
