@@ -1,5 +1,13 @@
 import sys
 import os
+
+# Null-guard: under pythonw.exe sys.stdout and sys.stderr are None.
+# Redirect to devnull so print() calls throughout the host do not crash.
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
 import json
 import multiprocessing
 from PyQt6.QtWidgets import QApplication
@@ -14,6 +22,7 @@ from host.win32_utils import (
 from host.process_manager import ProcessManager
 from host.queue_drain import QueueDrainTimer
 from host.config_loader import ConfigLoader, register_widget_type
+from shared.paths import get_config_path
 from widgets.pomodoro.widget import run_pomodoro_widget
 from widgets.calendar.widget import run_calendar_widget
 from widgets.notification.widget import run_notification_widget
@@ -84,12 +93,13 @@ def main():
     register_widget_type("notification", run_notification_widget)
 
     pm = ProcessManager()
-    config_loader = ConfigLoader("config.json", pm, window.compositor, after_reload=reapply_clip)
+    _cfg = get_config_path()
+    config_loader = ConfigLoader(str(_cfg), pm, window.compositor, after_reload=reapply_clip)
     config = config_loader.load()
     config_loader.apply_config(config)
 
     # --- Command-file watcher for Pomodoro controls (POMO-04) ---
-    config_dir = os.path.dirname(os.path.abspath("config.json"))
+    config_dir = str(_cfg.parent)
     cmd_path = os.path.join(config_dir, "pomodoro_command.json")
 
     cmd_watcher = QFileSystemWatcher()
