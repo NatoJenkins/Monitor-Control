@@ -45,14 +45,25 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 ### Active
 
 <!-- v1.2 — Configurable Colors -->
-- [ ] Host compositor owns bar background fill; widgets render on transparent background (BG-01)
-- [ ] Bar background color configurable via top-level `bg_color` in config.json (BG-02)
-- [ ] Control panel exposes `bg_color` picker in Layout tab (BG-03)
-- [ ] Calendar `time_color` and `date_color` configurable via widget settings block (CAL-04..05)
-- [ ] Calendar tab gains color pickers for time and date colors (CAL-06)
-- [ ] Pomodoro accent color hex fields replaced with ColorPickerWidget (POMO-06)
-- [ ] Reusable ColorPickerWidget: hue/intensity sliders, fixed saturation, live swatch, hex input (CPKR-01)
-- [ ] All color defaults match current hardcoded values — zero visual change on upgrade (CLR-01)
+<!-- Color Picker Widget -->
+- [ ] ColorPickerWidget renders hue slider (0–360) and intensity slider (0–100, maps to HSL lightness) with fixed saturation at 0.8 (CPKR-01)
+- [ ] ColorPickerWidget displays a live swatch that updates as sliders are dragged (CPKR-02)
+- [ ] ColorPickerWidget shows hex field that accepts typed/pasted #RRGGBB input; valid hex moves sliders, invalid hex rejected silently (CPKR-03)
+- [ ] ColorPickerWidget emits color_changed(str) signal on any value change (CPKR-04)
+- [ ] ColorPickerWidget uses colorsys from stdlib — no new pip dependencies (CPKR-05)
+<!-- Background Color -->
+- [ ] Host compositor fills full 1920×515 with configurable background color before compositing widget frames (BG-01)
+- [ ] All three widgets render on transparent background — no longer hardcode their own bg fill (BG-02)
+- [ ] Bar background color stored as top-level `bg_color` key in config.json; default #1a1a2e matches current hardcoded value (BG-03)
+- [ ] Control panel Layout tab exposes bg_color via a ColorPickerWidget instance (BG-04)
+<!-- Calendar Colors -->
+- [ ] Calendar widget reads `time_color` from settings block; default #ffffff matches current hardcoded (CAL-04)
+- [ ] Calendar widget reads `date_color` from settings block; default #dcdcdc matches current hardcoded (CAL-05)
+- [ ] Calendar tab in control panel exposes time_color and date_color via ColorPickerWidget instances (CAL-06)
+<!-- Pomodoro Colors -->
+- [ ] Pomodoro tab replaces three hex QLineEdit fields with three ColorPickerWidget instances for accent colors (POMO-06)
+<!-- Upgrade Safety -->
+- [ ] All new config keys use .get() with defaults matching current hardcoded values — zero visual change on upgrade (CLR-01)
 
 <!-- Backlog — deferred beyond v1.2 -->
 - [ ] Pomodoro plays an audio cue at each phase transition (PLSH-01)
