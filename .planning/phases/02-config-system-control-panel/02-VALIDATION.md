@@ -40,12 +40,12 @@ created: 2026-03-26
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
 | 2-01-01 | 01 | 0 | CFG-01 | unit | `python -m pytest tests/test_config_loader.py -x -q` | ❌ W0 | ⬜ pending |
 | 2-01-02 | 01 | 1 | CFG-01 | unit | `python -m pytest tests/test_config_loader.py -x -q` | ❌ W0 | ⬜ pending |
-| 2-01-03 | 01 | 1 | CFG-02 | unit | `python -m pytest tests/test_config_watcher.py -x -q` | ❌ W0 | ⬜ pending |
-| 2-01-04 | 01 | 1 | CFG-02 | integration | `python -m pytest tests/test_config_watcher.py -x -q` | ❌ W0 | ⬜ pending |
+| 2-01-03 | 01 | 1 | CFG-02 | unit | `python -m pytest tests/test_config_loader.py -x -q` | ❌ W0 | ⬜ pending |
+| 2-01-04 | 01 | 1 | CFG-02 | integration | `python -m pytest tests/test_config_loader.py -x -q` | ❌ W0 | ⬜ pending |
 | 2-01-05 | 01 | 1 | CFG-03 | integration | `python -m pytest tests/test_process_manager.py -x -q` | ❌ W0 | ⬜ pending |
-| 2-02-01 | 02 | 2 | CTRL-01 | unit | `python -m pytest tests/test_control_panel.py -x -q` | ❌ W0 | ⬜ pending |
-| 2-02-02 | 02 | 2 | CTRL-02 | integration | `python -m pytest tests/test_atomic_write.py -x -q` | ❌ W0 | ⬜ pending |
-| 2-02-03 | 02 | 2 | CTRL-03 | integration | `python -m pytest tests/test_control_panel.py -x -q` | ❌ W0 | ⬜ pending |
+| 2-02-01 | 02 | 2 | CTRL-01 | unit | `python -m pytest tests/test_control_panel_window.py -x -q` | ❌ W0 | ⬜ pending |
+| 2-02-02 | 02 | 2 | CTRL-02 | integration | `python -m pytest tests/test_config_io.py -x -q` | ❌ W0 | ⬜ pending |
+| 2-02-03 | 02 | 2 | CTRL-03 | integration | `python -m pytest tests/test_control_panel_window.py -x -q` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -54,10 +54,10 @@ created: 2026-03-26
 ## Wave 0 Requirements
 
 - [ ] `tests/test_config_loader.py` — stubs for CFG-01 (schema validation, ConfigLoader.load())
-- [ ] `tests/test_config_watcher.py` — stubs for CFG-02 (QFileSystemWatcher re-add, debounce)
+- [ ] `tests/test_config_loader.py` — stubs for CFG-02 (QFileSystemWatcher re-add, debounce; watcher tests co-located with ConfigLoader tests)
 - [ ] `tests/test_process_manager.py` — stubs for CFG-03 (inbound queue, CONFIG_UPDATE delivery)
-- [ ] `tests/test_control_panel.py` — stubs for CTRL-01, CTRL-03 (QMainWindow launches, form fields)
-- [ ] `tests/test_atomic_write.py` — stubs for CTRL-02 (atomic write via os.replace)
+- [ ] `tests/test_control_panel_window.py` — stubs for CTRL-01, CTRL-03 (QMainWindow launches, form fields)
+- [ ] `tests/test_config_io.py` — stubs for CTRL-02 (atomic write via os.replace)
 - [ ] `tests/conftest.py` — shared fixtures (tmp config path, fake widget process)
 
 *If pytest not installed: `pip install pytest`*
