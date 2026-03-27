@@ -349,3 +349,107 @@ def test_apply_config_starts_all_widgets(qapp, tmp_config_path):
 
     assert pm.start_widget.call_count == 2, f"Expected 2 start_widget calls, got {pm.start_widget.call_count}"
     assert compositor.add_slot.call_count == 2, f"Expected 2 add_slot calls, got {compositor.add_slot.call_count}"
+
+
+# ===========================================================================
+# TASK 1 (PHASE 09-01) TESTS — bg_color wiring
+# ===========================================================================
+
+class TestBgColorWiring:
+    """Tests for bg_color config key wiring through ConfigLoader's after_reload pipeline."""
+
+    def test_after_reload_calls_set_bg_color(self, qapp, tmp_path):
+        """after_reload callback invokes set_bg_color with bg_color from config."""
+        import json
+        from host.config_loader import ConfigLoader
+
+        cfg = {
+            "bg_color": "#ff0000",
+            "layout": {"display": {"width": 1920, "height": 515}},
+            "widgets": [
+                {
+                    "id": "dummy",
+                    "type": "dummy",
+                    "x": 0,
+                    "y": 0,
+                    "width": 1920,
+                    "height": 515,
+                    "settings": {},
+                }
+            ],
+        }
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(cfg), encoding="utf-8")
+
+        pm = MagicMock()
+        compositor = MagicMock()
+        mock_window = MagicMock()
+
+        config_loader = ConfigLoader(str(config_path), pm, compositor)
+        config_loader.load()
+
+        config_loader._after_reload = lambda: mock_window.set_bg_color(
+            config_loader.current_config.get("bg_color", "#1a1a2e")
+        )
+
+        config_loader._do_reload()
+
+        mock_window.set_bg_color.assert_called_once_with("#ff0000")
+
+    def test_bg_color_missing_defaults_to_1a1a2e(self, qapp, tmp_path):
+        """after_reload callback defaults to #1a1a2e when bg_color key is absent."""
+        import json
+        from host.config_loader import ConfigLoader
+
+        cfg = {
+            "layout": {"display": {"width": 1920, "height": 515}},
+            "widgets": [
+                {
+                    "id": "dummy",
+                    "type": "dummy",
+                    "x": 0,
+                    "y": 0,
+                    "width": 1920,
+                    "height": 515,
+                    "settings": {},
+                }
+            ],
+        }
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(cfg), encoding="utf-8")
+
+        pm = MagicMock()
+        compositor = MagicMock()
+        mock_window = MagicMock()
+
+        config_loader = ConfigLoader(str(config_path), pm, compositor)
+        config_loader.load()
+
+        config_loader._after_reload = lambda: mock_window.set_bg_color(
+            config_loader.current_config.get("bg_color", "#1a1a2e")
+        )
+
+        config_loader._do_reload()
+
+        mock_window.set_bg_color.assert_called_once_with("#1a1a2e")
+
+    def test_bg_color_initial_load_applied(self, qapp, tmp_path):
+        """config.get('bg_color', '#1a1a2e') returns correct value after load()."""
+        import json
+        from host.config_loader import ConfigLoader
+
+        cfg = {
+            "bg_color": "#00ff00",
+            "layout": {"display": {"width": 1920, "height": 515}},
+            "widgets": [],
+        }
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(cfg), encoding="utf-8")
+
+        pm = MagicMock()
+        compositor = MagicMock()
+
+        config_loader = ConfigLoader(str(config_path), pm, compositor)
+        config = config_loader.load()
+
+        assert config.get("bg_color", "#1a1a2e") == "#00ff00"
