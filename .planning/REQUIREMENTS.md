@@ -24,9 +24,9 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 
 ### Config System
 
-- [ ] **CFG-01**: `config.json` defines the display layout (slot names, geometries) and per-widget settings; it is the single source of truth read by the host on startup
-- [ ] **CFG-02**: `QFileSystemWatcher` monitors `config.json`; after each `fileChanged` event the path is re-added to the watcher (to survive atomic file replacement) and the reload is debounced by 100 ms
-- [ ] **CFG-03**: Config hot-reload diffs old vs new config and reconciles running widgets (stop removed, start added, send CONFIG_UPDATE to changed) without restarting the host process or tearing down the bar window
+- [x] **CFG-01**: `config.json` defines the display layout (slot names, geometries) and per-widget settings; it is the single source of truth read by the host on startup
+- [x] **CFG-02**: `QFileSystemWatcher` monitors `config.json`; after each `fileChanged` event the path is re-added to the watcher (to survive atomic file replacement) and the reload is debounced by 100 ms
+- [x] **CFG-03**: Config hot-reload diffs old vs new config and reconciles running widgets (stop removed, start added, send CONFIG_UPDATE to changed) without restarting the host process or tearing down the bar window
 
 ### Control Panel
 
@@ -110,9 +110,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | IPC-02 | Phase 1 | Complete |
 | IPC-03 | Phase 1 | Complete |
 | IPC-04 | Phase 1 | Complete |
-| CFG-01 | Phase 2 | Pending |
-| CFG-02 | Phase 2 | Pending |
-| CFG-03 | Phase 2 | Pending |
+| CFG-01 | Phase 2 | Complete |
+| CFG-02 | Phase 2 | Complete |
+| CFG-03 | Phase 2 | Complete |
 | CTRL-01 | Phase 2 | Pending |
 | CTRL-02 | Phase 2 | Pending |
 | CTRL-03 | Phase 2 | Pending |

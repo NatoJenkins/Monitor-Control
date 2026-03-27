@@ -1,14 +1,15 @@
 # Project State
 
 ## Status
-`COMPLETE` — Phase 1 complete; all hardware verification passed; ready for Phase 2
+`IN_PROGRESS` — Phase 2 plan 1 complete; config system foundation built
 
 ## Current Phase
 Phase 2 — Config System + Control Panel
-Current Plan: 0 / 2
+Current Plan: 1 / 2
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
+[#####     ] Phase 2 in progress (1/2 plans)
 
 ## Milestone
 v1.0 — initial release
@@ -17,13 +18,13 @@ v1.0 — initial release
 - Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 1 Plan 03 (all 3 tasks): Full IPC pipeline hardware-verified. showFullScreen bug fixed (setGeometry+show). All 5 SC passed. Phase 1 complete.
+2026-03-26 — Completed Phase 2 Plan 01 (all 2 tasks): config.json schema, ConfigUpdateMessage, bidirectional IPC queues, ConfigLoader with QFileSystemWatcher hot-reload and reconcile, config-driven main.py. 18 tests pass.
 
 ## Stopped At
-Phase 2 — ready to begin 02-01-PLAN.md (config.json schema, ConfigLoader, QFileSystemWatcher)
+Phase 2 — completed 02-01-PLAN.md; ready for 02-02-PLAN.md (control panel)
 
 ## Next Action
-Begin Phase 2: config.json schema, ConfigLoader with hot-reload, QFileSystemWatcher with re-add and debounce.
+Begin Phase 2 Plan 02: control panel UI that reads/writes config.json to trigger hot-reload.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -48,6 +49,10 @@ Begin Phase 2: config.json schema, ConfigLoader with hot-reload, QFileSystemWatc
 10. **ProcessManager deadline drain** — Drain loop uses 2s deadline budget before join, not single get_nowait, to flush burst frames and prevent feeder thread deadlock. (01-03)
 11. **DummyWidget silent drop on queue.Full** — Backpressure handled by frame dropping (not stalling subprocess); host drain rate matches push rate at 50ms. (01-03)
 12. **place_on_screen: setGeometry+show instead of showFullScreen** — showFullScreen() calls MonitorFromWindow internally which selects the active monitor, not the intended target. On the HDMI strip (Display 3), this caused the window to appear on Monitor 2. Fix: setGeometry(screen.geometry()) + show() assigns Qt geometry from the target QScreen directly. (01-03 bug fix, commit 547ef4a)
+13. **WIDGET_REGISTRY as module-level dict** — register_widget_type() called before ConfigLoader construction in main.py, enabling upfront type dispatch without coupling ConfigLoader to specific widget imports. (02-01)
+14. **in_q maxsize=5 for config updates** — Config updates are infrequent; small buffer prevents unbounded memory if widget subprocess falls behind. Separate from out_q (maxsize=10, high-frequency frames). (02-01)
+15. **reconcile: stop before start** — Prevents transient duplicate widget_id state if a widget ID is repurposed across a hot-reload. (02-01)
+16. **QFileSystemWatcher re-add on every fileChanged** — Atomic file replacement (editor write) drops the watched path from the watcher; re-add on every event is mandatory for hot-reload to survive saves. (02-01)
 
 ## Blockers
 None
@@ -64,3 +69,4 @@ None
 | 01 | 01 | 248 | 2/2 | 15 |
 | 01 | 02 | 124 | 2/2 | 3 |
 | 01 | 03 | 1800 | 3/3 | 14 |
+| 02 | 01 | 331 | 2/2 | 10 |
