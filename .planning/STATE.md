@@ -1,15 +1,15 @@
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 2 plan 1 complete; config system foundation built
+`IN_PROGRESS` — Phase 2 plan 2 implementation complete; awaiting hardware verification checkpoint
 
 ## Current Phase
 Phase 2 — Config System + Control Panel
-Current Plan: 1 / 2
+Current Plan: 2 / 2
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
-[#####     ] Phase 2 in progress (1/2 plans)
+[##########] Phase 2 implementation complete; awaiting hardware verify (2/2 plans)
 
 ## Milestone
 v1.0 — initial release
@@ -18,13 +18,13 @@ v1.0 — initial release
 - Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 2 Plan 01 (all 2 tasks): config.json schema, ConfigUpdateMessage, bidirectional IPC queues, ConfigLoader with QFileSystemWatcher hot-reload and reconcile, config-driven main.py. 18 tests pass.
+2026-03-26 — Completed Phase 2 Plan 02 Task 1: control_panel package with atomic config I/O (tempfile.mkstemp + os.replace), ControlPanelWindow QMainWindow (Layout/Pomodoro/Calendar tabs), 14 new tests, 50 total pass. Stopped at Task 2 hardware verify checkpoint.
 
 ## Stopped At
-Phase 2 — completed 02-01-PLAN.md; ready for 02-02-PLAN.md (control panel)
+Phase 2 — completed 02-02-PLAN.md Task 1 (implementation); paused at Task 2 (checkpoint:human-verify — hardware verification of hot-reload and control panel end-to-end)
 
 ## Next Action
-Begin Phase 2 Plan 02: control panel UI that reads/writes config.json to trigger hot-reload.
+User hardware verification: (1) start host + control panel, (2) double-save test for QFileSystemWatcher re-add, (3) widget add/remove test. After approval, Phase 2 is complete.
 
 ## Key Context
 - Target display: 1920x515, Display 3 (below two primary monitors)
@@ -53,6 +53,10 @@ Begin Phase 2 Plan 02: control panel UI that reads/writes config.json to trigger
 14. **in_q maxsize=5 for config updates** — Config updates are infrequent; small buffer prevents unbounded memory if widget subprocess falls behind. Separate from out_q (maxsize=10, high-frequency frames). (02-01)
 15. **reconcile: stop before start** — Prevents transient duplicate widget_id state if a widget ID is repurposed across a hot-reload. (02-01)
 16. **QFileSystemWatcher re-add on every fileChanged** — Atomic file replacement (editor write) drops the watched path from the watcher; re-add on every event is mandatory for hot-reload to survive saves. (02-01)
+17. **control_panel is sole writer of config.json** — host (ConfigLoader) never writes, only reads and watches. Enforced by design: only control_panel/config_io.py has atomic_write_config. (02-02)
+18. **Temp file in same directory as target** — tempfile.mkstemp(dir=same_dir) ensures os.replace stays on same filesystem, avoiding cross-device rename errors on Windows. (02-02)
+19. **_update_widget_settings does NOT auto-create widget entries** — Phase 3 adds Pomodoro/Calendar to config.json; panel only updates settings for existing entries. (02-02)
+20. **qapp fixture is session-scoped** — Avoids creating multiple QApplication instances across test session (Qt enforces singleton). (02-02)
 
 ## Blockers
 None
@@ -70,3 +74,4 @@ None
 | 01 | 02 | 124 | 2/2 | 3 |
 | 01 | 03 | 1800 | 3/3 | 14 |
 | 02 | 01 | 331 | 2/2 | 10 |
+| 02 | 02 | 120 | 1/2 | 7 |

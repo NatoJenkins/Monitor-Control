@@ -13,7 +13,7 @@ MonitorControl is built in four phases that match the natural dependency chain o
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Host Infrastructure + Pipeline** - Host window, cursor lockout, IPC, ProcessManager, dummy widget end-to-end (completed 2026-03-26)
-- [ ] **Phase 2: Config System + Control Panel** - config.json schema, hot-reload watcher, control panel process
+- [x] **Phase 2: Config System + Control Panel** - config.json schema, hot-reload watcher, control panel process (completed 2026-03-27)
 - [ ] **Phase 3: Pomodoro + Calendar Widgets** - Both real widgets validate the WidgetBase/Pillow/queue pipeline
 - [ ] **Phase 4: Notification Interceptor** - WinRT spike, host permission grant, notification widget
 
@@ -126,7 +126,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Host Infrastructure + Pipeline | 3/3 | Complete   | 2026-03-27 |
-| 2. Config System + Control Panel | 1/2 | In Progress|  |
+| 2. Config System + Control Panel | 2/2 | Complete   | 2026-03-27 |
 | 3. Pomodoro + Calendar Widgets | 0/2 | Not started | - |
 | 4. Notification Interceptor | 0/2 | Not started | - |
 

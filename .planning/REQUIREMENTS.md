@@ -30,9 +30,9 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 
 ### Control Panel
 
-- [ ] **CTRL-01**: A separate PyQt6 `QMainWindow` process provides the only user-facing configuration surface (cursor lockout makes in-bar interaction impossible)
-- [ ] **CTRL-02**: The control panel reads and writes `config.json` atomically (write to temp file, then `os.replace`) and is the sole writer of that file
-- [ ] **CTRL-03**: The control panel exposes widget layout configuration and per-widget settings (Pomodoro durations, clock format); changes are saved to config.json and picked up by the host's file watcher
+- [x] **CTRL-01**: A separate PyQt6 `QMainWindow` process provides the only user-facing configuration surface (cursor lockout makes in-bar interaction impossible)
+- [x] **CTRL-02**: The control panel reads and writes `config.json` atomically (write to temp file, then `os.replace`) and is the sole writer of that file
+- [x] **CTRL-03**: The control panel exposes widget layout configuration and per-widget settings (Pomodoro durations, clock format); changes are saved to config.json and picked up by the host's file watcher
 
 ### Pomodoro Widget
 
@@ -113,9 +113,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CFG-01 | Phase 2 | Complete |
 | CFG-02 | Phase 2 | Complete |
 | CFG-03 | Phase 2 | Complete |
-| CTRL-01 | Phase 2 | Pending |
-| CTRL-02 | Phase 2 | Pending |
-| CTRL-03 | Phase 2 | Pending |
+| CTRL-01 | Phase 2 | Complete |
+| CTRL-02 | Phase 2 | Complete |
+| CTRL-03 | Phase 2 | Complete |
 | POMO-01 | Phase 3 | Pending |
 | POMO-02 | Phase 3 | Pending |
 | POMO-03 | Phase 3 | Pending |
