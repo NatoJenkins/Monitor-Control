@@ -25,7 +25,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 - [x] **Phase 5: Path Resolution & Freeze Safety** - Fix config path resolution and console-null-guard so both entry points work from any launch context (completed 2026-03-27)
 - [x] **Phase 6: Autostart Toggle** - Control panel Startup tab that reads/writes HKCU Run key to enable host autostart at Windows login (completed 2026-03-27)
-- [ ] **Phase 7: Control Panel Packaging** - PyInstaller --onedir --noconsole build producing a standalone MonitorControl.exe
+- [x] **Phase 7: Control Panel Packaging** - PyInstaller --onedir --noconsole build producing a standalone MonitorControl.exe (completed 2026-03-27)
 
 ## Phase Details
 
@@ -65,7 +65,7 @@ Plans:
   2. MonitorControl.exe shows no terminal or console window on launch
   3. MonitorControl.exe displays a custom .ico application icon in Windows Explorer and Task Manager (not the generic Python icon)
   4. Running `pyinstaller build/control_panel.spec` from the project root reproduces the distributable build from a clean checkout
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 07-01-PLAN.md — PyInstaller spec + icon + null-guard + build producing MonitorControl.exe
@@ -82,7 +82,7 @@ Plans:
 | 4. Notification Interceptor | v1.0 | 2/2 | Complete | 2026-03-27 |
 | 5. Path Resolution & Freeze Safety | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 6. Autostart Toggle | v1.1 | 1/1 | Complete | 2026-03-27 |
-| 7. Control Panel Packaging | v1.1 | 0/1 | Not started | - |
+| 7. Control Panel Packaging | 1/1 | Complete   | 2026-03-27 | - |
 
 ---
 *Roadmap created: 2026-03-26*

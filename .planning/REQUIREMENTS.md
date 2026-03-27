@@ -22,10 +22,10 @@ Requirements for v1.1 Startup & Distribution milestone. Each maps to roadmap pha
 
 ### Packaging
 
-- [ ] **PKG-01**: Control panel packaged as standalone .exe (no Python environment required)
-- [ ] **PKG-02**: Control panel .exe launches without a terminal or console window
-- [ ] **PKG-03**: Control panel .exe displays application icon (.ico, distinguishes from generic Python in Explorer/Task Manager)
-- [ ] **PKG-04**: PyInstaller build is reproducible via a committed .spec file
+- [x] **PKG-01**: Control panel packaged as standalone .exe (no Python environment required)
+- [x] **PKG-02**: Control panel .exe launches without a terminal or console window
+- [x] **PKG-03**: Control panel .exe displays application icon (.ico, distinguishes from generic Python in Explorer/Task Manager)
+- [x] **PKG-04**: PyInstaller build is reproducible via a committed .spec file
 
 ## v2 Requirements
 
@@ -68,10 +68,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STRT-03 | Phase 6 | Complete |
 | STRT-04 | Phase 6 | Complete |
 | STRT-05 | Phase 6 | Complete |
-| PKG-01 | Phase 7 | Pending |
-| PKG-02 | Phase 7 | Pending |
-| PKG-03 | Phase 7 | Pending |
-| PKG-04 | Phase 7 | Pending |
+| PKG-01 | Phase 7 | Complete |
+| PKG-02 | Phase 7 | Complete |
+| PKG-03 | Phase 7 | Complete |
+| PKG-04 | Phase 7 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 11 total
