@@ -5,9 +5,9 @@ milestone_name: Configurable Colors
 status: active
 stopped_at: null
 last_updated: "2026-03-27"
-last_activity: 2026-03-27 — Milestone v1.2 started
+last_activity: 2026-03-27 — v1.2 roadmap created (Phases 8–11)
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Keep productivity tooling off the primary monitors — widgets run persistently in a dedicated display the cursor cannot enter, requiring zero window management from the user.
-**Current focus:** v1.2 Configurable Colors — defining requirements
+**Current focus:** v1.2 Configurable Colors — roadmap defined, ready to plan Phase 8
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 8 — Core Widget + Background Infrastructure
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-27 — Milestone v1.2 started
+Status: Roadmap complete, ready for plan-phase
+Last activity: 2026-03-27 — v1.2 roadmap created (Phases 8–11)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -69,6 +69,12 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 07]: Config path switched from _PROJECT_ROOT/config.json to %LOCALAPPDATA%\MonitorControl\config.json so packaged exe and Python host share one file
 - [Phase 07]: PyInstaller 6.19.0 installed as build-time tool only — not added to requirements.txt
 - [Phase 07]: Autostart enable/disable deferred from packaged exe (v2, HPKG-02) — pythonw.exe not beside MonitorControl.exe; fails gracefully via OSError catch
+- [v1.2 Roadmap]: ColorPickerWidget lives only in control_panel/color_picker.py — never in shared/ (would import PyQt6 in widget subprocesses, crashes on Windows spawn)
+- [v1.2 Roadmap]: Widget transparency and host bg fill are one atomic change (Phase 8) — partial migration causes host fill to be silently overwritten on every compositor pass
+- [v1.2 Roadmap]: colorsys.hls_to_rgb(h, l, s) takes H, L, S order — use a named wrapper or QColor.fromHslF exclusively to avoid silent wrong-color output
+- [v1.2 Roadmap]: QColor.hslHueF() returns -1 for achromatic colors — track _hue separately in ColorPickerWidget state
+- [v1.2 Roadmap]: All new config keys use .get() with exact hardcoded defaults — never bracket access on new keys (CLR-01)
+- [v1.2 Roadmap]: Widget subprocesses use PIL.ImageColor.getrgb() for hex-to-RGBA; must be wrapped in _safe_hex_color() fallback to prevent subprocess crash on invalid config
 
 ### Pending Todos
 
