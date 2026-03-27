@@ -56,7 +56,7 @@ patterns-established:
   - "Form population via _load_values() called in __init__ after _build_ui()"
   - "Session-scoped qapp fixture in conftest.py for all Qt widget tests"
 
-requirements-completed: [CTRL-01, CTRL-02, CTRL-03]
+requirements-completed: [CTRL-01, CTRL-02, CTRL-03, CFG-02, CFG-03]
 
 # Metrics
 duration: 30min
@@ -131,8 +131,31 @@ Each task was committed atomically:
 
 ---
 
-**Total deviations:** 2 auto-fixed (1 Rule 1 test mock bug, 1 Rule 1 observability bug)
-**Impact on plan:** Both fixes necessary for correctness and verifiability. No scope creep.
+**3. [Rule 1 - Bug] stop_widget deadlocked Qt main thread on proc.join()**
+- **Found during:** Hardware verification (widget removal test — host froze, cursor escaped Display 3)
+- **Issue:** `stop_widget` called `proc.join(timeout=5)` on the Qt main thread. The child's multiprocessing Queue feeder thread blocks flushing the pipe; the drain timer (also on the main thread) can't run while join() blocks; classic deadlock. Host window became unresponsive indefinitely.
+- **Fix:** Removed drain loop and `proc.join()` from `stop_widget`. `proc.terminate()` on Windows calls `TerminateProcess()` — immediate hard kill, no join needed. Daemon processes are OS-collected on parent exit.
+- **Files modified:** host/process_manager.py
+- **Committed in:** 726eccc
+
+**4. [Rule 1 - Bug] remove_slot did not trigger a repaint — removed widget frame lingered on screen**
+- **Found during:** Hardware verification (widget still visible after remove + hot-reload)
+- **Issue:** `QueueDrainTimer._drain()` only calls `schedule_repaint()` when new frames arrive. After `stop_widget`, the widget is removed from `_pm._widgets` so no frames arrive; `updated` stays False; repaint never fires; old teal frame lingers.
+- **Fix:** `compositor.remove_slot()` now calls `self.schedule_repaint()` directly after clearing the slot.
+- **Files modified:** host/compositor.py
+- **Committed in:** d3fb9fd
+
+**5. [Rule 1 - Bug] ClipCursor cleared after hot-reload — cursor escaped Display 3 after widget add/remove**
+- **Found during:** Hardware verification (cursor restriction broken after reconcile cycle)
+- **Issue:** Process spawn/terminate during reconcile cleared ClipCursor silently. `Win32MessageFilter` only re-applied on session unlock and display change — not on app activation or config reloads.
+- **Fix:** Two-part: (a) `ConfigLoader` accepts `after_reload` callback, called after every successful `_reconcile` — `main.py` passes `reapply_clip`. (b) `Win32MessageFilter` handles `WM_ACTIVATEAPP` to re-apply whenever the host window regains focus.
+- **Files modified:** host/config_loader.py, host/win32_utils.py, host/main.py
+- **Committed in:** d5ba291
+
+---
+
+**Total deviations:** 5 auto-fixed (1 test mock bug, 1 observability bug, 3 runtime bugs found during hardware verification)
+**Impact on plan:** All fixes necessary for correctness. No scope creep.
 
 ## Issues Encountered
 
