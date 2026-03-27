@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Configurable Colors
 status: completed
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-27T21:21:16.585Z"
-last_activity: 2026-03-27 — v1.2 roadmap created (Phases 8–11)
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-27T21:26:40.233Z"
+last_activity: 2026-03-27 — 08-02 complete (host bg ownership + widget transparency)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 25
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 8 — Core Widget + Background Infrastructure
-Plan: —
-Status: Roadmap complete, ready for plan-phase
-Last activity: 2026-03-27 — v1.2 roadmap created (Phases 8–11)
+Plan: 02 (complete)
+Status: Phase 08 complete — all 2 plans done
+Last activity: 2026-03-27 — 08-02 complete (host bg ownership + widget transparency)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P01 | 5 | 4 tasks | 5 files |
 | Phase 07 P01 | ~45min | 3 tasks | 8 files |
 | Phase 08 P01 | 4 | 2 tasks | 2 files |
+| Phase 08 P02 | 3 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 08-01]: QColor.fromHslF used exclusively over colorsys — eliminates HLS argument-order trap, no new pip dependencies
 - [Phase 08-01]: _hue stored as private float independent of QColor.hslHueF() — QColor returns -1 for achromatic colors, tracking separately preserves hue across gray round-trips
 - [Phase 08-01]: sliderReleased (not valueChanged) connected to _emit_color_changed — programmatic setValue() in _sync_all_from_state() does not trigger emissions
+- [Phase 08-02]: set_bg_color() uses QColor.isValid() to reject invalid hex strings — leaves _bg_qcolor unchanged, consistent with QColor validation pattern from 08-01
+- [Phase 08-02]: All four file changes (host fill + 3 widget transparency) committed atomically — partial migration silently overwrites host fill on every compositor pass
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27T21:21:16.582Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-27T21:25:30Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
