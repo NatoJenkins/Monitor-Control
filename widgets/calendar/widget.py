@@ -3,7 +3,7 @@ import datetime
 import queue
 import time
 import pathlib
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 from shared.message_schema import FrameData, ConfigUpdateMessage
 from widgets.base import WidgetBase
 
@@ -23,6 +23,15 @@ def _load_font(font_name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default(size=size)
 
 
+def _safe_hex_color(hex_str: str, default_rgba: tuple) -> tuple:
+    """Convert '#rrggbb' to (R, G, B, 255). Returns default_rgba on any error."""
+    try:
+        r, g, b = ImageColor.getrgb(hex_str)
+        return (r, g, b, 255)
+    except (ValueError, AttributeError, TypeError):
+        return default_rgba
+
+
 class CalendarWidget(WidgetBase):
     """Displays current time and date. Renders via Pillow at 1Hz."""
 
@@ -33,8 +42,12 @@ class CalendarWidget(WidgetBase):
         settings = config.get("settings", {})
         self._clock_format = settings.get("clock_format", "24h")
         self._font_name = settings.get("font", "Inter")
-        self._text_color = (220, 220, 220, 255)
-        self._time_color = (255, 255, 255, 255)
+        self._time_color = _safe_hex_color(
+            settings.get("time_color", "#ffffff"), (255, 255, 255, 255)
+        )
+        self._text_color = _safe_hex_color(
+            settings.get("date_color", "#dcdcdc"), (220, 220, 220, 255)
+        )
 
     def _format_time(self, now: datetime.datetime) -> str:
         if self._clock_format == "12h":
@@ -91,6 +104,10 @@ class CalendarWidget(WidgetBase):
                     self._clock_format = settings["clock_format"]
                 if "font" in settings:
                     self._font_name = settings["font"]
+                if "time_color" in settings:
+                    self._time_color = _safe_hex_color(settings["time_color"], (255, 255, 255, 255))
+                if "date_color" in settings:
+                    self._text_color = _safe_hex_color(settings["date_color"], (220, 220, 220, 255))
 
             frame = self.render_frame()
             try:
