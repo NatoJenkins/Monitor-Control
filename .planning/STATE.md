@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 current_plan: 2 / 2
 status: unknown
-last_updated: "2026-03-27T06:17:32.986Z"
+last_updated: "2026-03-27T06:34:24.292Z"
 progress:
   total_phases: 4
   completed_phases: 4
@@ -15,43 +15,38 @@ progress:
 # Project State
 
 ## Status
-`IN_PROGRESS` — Phase 4 Plan 02 complete (notification widget built, hardware regression fixed); pending hardware re-verification
+`MILESTONE_COMPLETE` — v1.0 MVP shipped 2026-03-27. All 4 phases, 9 plans complete. Ready for next milestone.
 
 ## Current Phase
-Phase 4 — Notifications Widget
-Current Plan: 2 / 2
+None — v1.0 complete.
 
 ## Progress
 [##########] Phase 1 complete (3/3 plans)
 [##########] Phase 2 complete — hardware verified (2/2 plans)
 [##########] Phase 3 complete — hardware verified (2/2 plans)
-[████████░░] Phase 4 in progress (2/2 plans built; awaiting hardware re-verification)
+[##########] Phase 4 complete — hardware verified (2/2 plans)
 
 ## Milestone
-v1.0 — initial release
+v1.0 — SHIPPED 2026-03-27
 
 ## Completed Phases
 - Phase 1 — Host Infrastructure + IPC Pipeline (completed 2026-03-26, hardware verified)
-- Phase 2 — Config System + Control Panel (completed 2026-03-26, hardware verified)
-- Phase 3 — Pomodoro + Calendar Widgets (completed 2026-03-26, hardware verified)
+- Phase 2 — Config System + Control Panel (completed 2026-03-27, hardware verified)
+- Phase 3 — Pomodoro + Calendar Widgets (completed 2026-03-27, hardware verified)
+- Phase 4 — Notification Interceptor (completed 2026-03-27, hardware verified)
 
 ## Last Action
-2026-03-26 — Completed Phase 4 Plan 02 (notification widget build + hardware regression fix). NotificationWidget built with Pillow rendering, auto-dismiss, blocklist, exception-resilient run loop. Hardware test revealed subprocess crash on empty/None toast nodes (dark red slot). Fixed: list(IVectorView), None-coercion, _run_once() isolation. 105 tests passing.
-
-## Stopped At
-Completed 04-02-PLAN.md (notification widget). Awaiting hardware re-verification with corrected PowerShell test command.
+2026-03-27 — Completed v1.0 milestone. Audited (gaps_found: Phase 1 missing VERIFICATION.md + IPC-03 spec deviation, both accepted as known gaps). Archived roadmap + requirements to milestones/. PROJECT.md evolved. RETROSPECTIVE.md created. Git tag v1.0 created.
 
 ## Next Action
-Hardware re-verification: restart host, fire corrected PowerShell notification, confirm bell -> notification card -> auto-dismiss cycle on Display 3.
+Start next milestone: `/gsd:new-milestone`
 
-## Key Context
-- Target display: 1920x515, Display 3 (below two primary monitors)
-- Stack: PyQt6 6.10.2, pywin32 311, winrt-Windows.UI.Notifications.Management 3.2.1, watchdog 6.x
-- IPC: multiprocessing.Queue (widget → host only for v1; host → widget config update is v2)
-- Rendering: host composites RGBA frames from widgets via QTimer drain at 50ms
-- Config: atomic write + QFileSystemWatcher re-add pattern
-- Notification widget: surface-and-dismiss only (no pre-display suppression — no public API exists)
-- Build order: Phase 1 (host+dummy) → Phase 2 (config+panel) → Phase 3 (Pomodoro+Calendar) → Phase 4 (notifications)
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-03-27)
+
+**Core value:** Keep productivity tooling off the primary monitors — widgets run persistently in a dedicated display the cursor cannot enter, requiring zero window management from the user.
+**Current focus:** Planning next milestone
 
 ## Decisions
 
