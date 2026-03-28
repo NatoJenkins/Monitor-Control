@@ -71,6 +71,14 @@ class ControlPanelWindow(QMainWindow):
         form.addRow("Height:", self._display_height)
 
         layout.addWidget(group)
+
+        appear_group = QGroupBox("Appearance")
+        appear_form = QFormLayout(appear_group)
+
+        self._bg_color_picker = ColorPickerWidget()
+        appear_form.addRow("Background Color:", self._bg_color_picker)
+
+        layout.addWidget(appear_group)
         layout.addStretch()
         return container
 
@@ -290,6 +298,7 @@ class ControlPanelWindow(QMainWindow):
         display = self._config.get("layout", {}).get("display", {})
         self._display_width.setValue(display.get("width", 1920))
         self._display_height.setValue(display.get("height", 515))
+        self._bg_color_picker.set_color(self._config.get("bg_color", "#1a1a2e"))
 
         # Find widget settings by type
         pomo_cfg = self._find_widget_settings("pomodoro")
@@ -356,6 +365,7 @@ class ControlPanelWindow(QMainWindow):
         config = copy.deepcopy(self._config)
         config["layout"]["display"]["width"] = self._display_width.value()
         config["layout"]["display"]["height"] = self._display_height.value()
+        config["bg_color"] = self._bg_color_picker.color()
 
         # Update or create pomodoro widget settings
         self._update_widget_settings(config, "pomodoro", {
