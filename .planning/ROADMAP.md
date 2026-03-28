@@ -92,7 +92,9 @@ Plans:
   1. Opening the Layout tab shows a ColorPickerWidget pre-populated with the current bg_color from config
   2. Adjusting the background color picker and clicking Save causes the bar background to change to the selected color immediately
   3. Reopening the control panel after Save shows the Layout tab picker restored to the previously saved color
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 11-01-PLAN.md — Add bg_color ColorPickerWidget to Layout tab (TDD)
 
 ## Progress
 
@@ -107,9 +109,9 @@ Plans:
 | 7. Control Panel Packaging | v1.1 | 1/1 | Complete | 2026-03-27 |
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 9. Config Schema + Hot-Reload Wiring | v1.2 | 2/2 | Complete | 2026-03-27 |
-| 10. Control Panel Integration | 1/1 | Complete   | 2026-03-27 | - |
-| 11. Layout Tab bg_color Picker | v1.2 | 0/TBD | Not started | - |
+| 10. Control Panel Integration | v1.2 | 1/1 | Complete | 2026-03-27 |
+| 11. Layout Tab bg_color Picker | v1.2 | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 — Phase 10 plans created (1 plan, 1 wave)*
+*Last updated: 2026-03-27 — Phase 11 plans created (1 plan, 1 wave)*
