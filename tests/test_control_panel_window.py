@@ -565,3 +565,72 @@ def test_collect_config_includes_cal_colors(mock_enabled, qapp, tmp_path):
     assert cal["time_color"].startswith("#") and len(cal["time_color"]) == 7
     assert cal["date_color"].startswith("#") and len(cal["date_color"]) == 7
     window.close()
+
+
+# ---------------------------------------------------------------------------
+# Layout tab bg_color picker tests (Phase 11-01 — TDD RED then GREEN)
+# ---------------------------------------------------------------------------
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_bg_color_picker_is_widget(mock_enabled, qapp, tmp_path):
+    """Layout tab has a ColorPickerWidget instance at _bg_color_picker."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    assert isinstance(window._bg_color_picker, ColorPickerWidget)
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_bg_color_picker_loads_from_config(mock_enabled, qapp, tmp_path):
+    """bg_color picker is populated from the top-level bg_color config key at startup."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config = {
+        "layout": {"display": {"width": 1920, "height": 515}},
+        "bg_color": "#aabbcc",
+        "widgets": [
+            {
+                "id": "pomodoro-1",
+                "type": "pomodoro",
+                "x": 0, "y": 0, "width": 400, "height": 515,
+                "settings": {
+                    "work_minutes": 30,
+                    "short_break_minutes": 5,
+                    "long_break_minutes": 15,
+                    "cycles_before_long_break": 4,
+                }
+            },
+            {
+                "id": "calendar-1",
+                "type": "calendar",
+                "x": 400, "y": 0, "width": 400, "height": 515,
+                "settings": {"clock_format": "12h"}
+            },
+        ]
+    }
+    config_path = str(tmp_path / "config.json")
+    (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    window = ControlPanelWindow(config_path=config_path)
+
+    c = window._bg_color_picker.color()
+    assert c.startswith("#") and len(c) == 7
+    window.close()
+
+
+@patch("control_panel.autostart.is_autostart_enabled", return_value=False)
+def test_collect_config_includes_bg_color(mock_enabled, qapp, tmp_path):
+    """_collect_config() returns a dict with top-level bg_color key as a valid hex string."""
+    from control_panel.main_window import ControlPanelWindow
+
+    config_path = _write_minimal_config(tmp_path)
+    window = ControlPanelWindow(config_path=config_path)
+
+    config = window._collect_config()
+
+    assert "bg_color" in config
+    assert config["bg_color"].startswith("#") and len(config["bg_color"]) == 7
+    window.close()
