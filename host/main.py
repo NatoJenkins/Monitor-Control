@@ -15,7 +15,7 @@ from PyQt6.QtCore import QFileSystemWatcher
 from host.window import HostWindow
 from host.win32_utils import (
     find_target_screen, place_on_screen,
-    apply_clip_cursor, compute_allowed_rect,
+    apply_clip_cursor, release_clip_cursor, compute_allowed_rect,
     register_session_notifications,
     Win32MessageFilter,
 )
@@ -44,7 +44,17 @@ def main():
     # --- ClipCursor enforcement (HOST-04) ---
     # Compute allowed cursor region: all screens EXCEPT Display 3
     allowed = compute_allowed_rect(target, app.screens())
-    apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
+
+    # Check game_mode at startup before applying clip cursor
+    _startup_game_mode = False
+    try:
+        with open(str(get_config_path()), encoding="utf-8") as _f:
+            _startup_game_mode = json.load(_f).get("game_mode", False)
+    except Exception:
+        pass
+
+    if not _startup_game_mode:
+        apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
 
     # Register for WTS session notifications to re-apply ClipCursor after unlock
     hwnd = int(window.winId())
@@ -55,6 +65,8 @@ def main():
 
     def reapply_clip():
         nonlocal target, allowed
+        if config_loader.current_config.get("game_mode", False):
+            return
         apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
 
     def on_display_change():
@@ -68,7 +80,8 @@ def main():
         target = new_target
         window.setGeometry(target.geometry())
         allowed = compute_allowed_rect(target, app.screens())
-        apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
+        if not config_loader.current_config.get("game_mode", False):
+            apply_clip_cursor(allowed.left, allowed.top, allowed.right, allowed.bottom)
 
     # Debounce display changes — monitors often send multiple WM_DISPLAYCHANGE
     # messages in rapid succession when powering on/off.
@@ -98,7 +111,8 @@ def main():
     _clip_poll_timer = QTimer()
     _clip_poll_timer.setInterval(100)
     _clip_poll_timer.timeout.connect(reapply_clip)
-    _clip_poll_timer.start()
+    if not _startup_game_mode:
+        _clip_poll_timer.start()
     window._clip_poll_timer = _clip_poll_timer  # prevent GC
 
     # --- Notification access permission (NOTF-01) ---
@@ -141,7 +155,14 @@ def main():
     config_loader.apply_config(config)
 
     def _after_reload():
-        reapply_clip()
+        game_mode = config_loader.current_config.get("game_mode", False)
+        if game_mode:
+            _clip_poll_timer.stop()
+            release_clip_cursor()
+        else:
+            if not _clip_poll_timer.isActive():
+                _clip_poll_timer.start()
+            reapply_clip()
         window.set_bg_color(config_loader.current_config.get("bg_color", "#1a1a2e"))
 
     config_loader._after_reload = _after_reload

@@ -79,6 +79,13 @@ class ControlPanelWindow(QMainWindow):
         appear_form.addRow("Background Color:", self._bg_color_picker)
 
         layout.addWidget(appear_group)
+
+        game_group = QGroupBox("Game Mode")
+        game_layout = QVBoxLayout(game_group)
+        self._game_mode_checkbox = QCheckBox("Disable cursor lock (for borderless window games)")
+        game_layout.addWidget(self._game_mode_checkbox)
+        layout.addWidget(game_group)
+
         layout.addStretch()
         return container
 
@@ -299,6 +306,7 @@ class ControlPanelWindow(QMainWindow):
         self._display_width.setValue(display.get("width", 1920))
         self._display_height.setValue(display.get("height", 515))
         self._bg_color_picker.set_color(self._config.get("bg_color", "#1a1a2e"))
+        self._game_mode_checkbox.setChecked(self._config.get("game_mode", False))
 
         # Find widget settings by type
         pomo_cfg = self._find_widget_settings("pomodoro")
@@ -366,6 +374,7 @@ class ControlPanelWindow(QMainWindow):
         config["layout"]["display"]["width"] = self._display_width.value()
         config["layout"]["display"]["height"] = self._display_height.value()
         config["bg_color"] = self._bg_color_picker.color()
+        config["game_mode"] = self._game_mode_checkbox.isChecked()
 
         # Update or create pomodoro widget settings
         self._update_widget_settings(config, "pomodoro", {

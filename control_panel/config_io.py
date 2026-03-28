@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
     "layout": {
         "display": {"width": 1920, "height": 515}
     },
+    "game_mode": False,
     "widgets": []
 }
 
