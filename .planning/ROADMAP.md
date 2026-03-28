@@ -110,7 +110,7 @@ Plans:
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 9. Config Schema + Hot-Reload Wiring | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 10. Control Panel Integration | v1.2 | 1/1 | Complete | 2026-03-27 |
-| 11. Layout Tab bg_color Picker | 1/1 | Complete   | 2026-03-28 | - |
+| 11. Layout Tab bg_color Picker | 1/1 | Complete    | 2026-03-28 | - |
 
 ---
 *Roadmap created: 2026-03-26*

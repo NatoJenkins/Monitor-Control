@@ -1,19 +1,19 @@
 ---
 phase: 11-layout-tab-bg-color-picker
 verified: 2026-03-27T00:00:00Z
-status: human_needed
+status: verified
 score: 3/3 must-haves verified
 re_verification: false
 human_verification:
   - test: "Open the control panel Layout tab and verify the Appearance groupbox with Background Color picker is visible, pre-populated with the current bar background color from config.json"
     expected: "Layout tab shows an Appearance groupbox with a ColorPickerWidget row labelled Background Color; the swatch matches the bg_color value in config.json"
-    why_human: "Visual presence and correct pre-population of the color swatch cannot be verified by grep or unit tests alone"
+    result: PASS — Appearance groupbox visible with Background Color picker pre-populated correctly
   - test: "Move the hue slider on the Background Color picker, click Save, and observe the bar background color on the monitor strip"
     expected: "The bar background changes to the newly selected color within approximately 1 second of clicking Save (hot-reload pipeline carries the change)"
-    why_human: "End-to-end hot-reload requires a running host process and real QFileSystemWatcher events; cannot be triggered from unit tests"
+    result: PASS — bar background updates live within ~1s of Save
   - test: "After saving a new background color, close the control panel and reopen it; switch to the Layout tab"
     expected: "The Background Color picker is restored to the color that was saved, not the default #1a1a2e"
-    why_human: "Requires closing and reopening the packaged exe; cannot automate the re-open cycle in unit tests"
+    result: PASS — picker restores saved color on reopen
 ---
 
 # Phase 11: Layout Tab bg_color Picker — Verification Report
