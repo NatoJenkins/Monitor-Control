@@ -136,6 +136,54 @@
 
 ---
 
+## Milestone: v1.2 — Configurable Colors
+
+**Shipped:** 2026-03-27
+**Phases:** 4 | **Plans:** 6
+
+### What Was Built
+
+1. `control_panel/color_picker.py` — `ColorPickerWidget` with hue slider (0–359), intensity slider (0–100), live swatch, hex input; QColor.fromHslF with fixed saturation 0.8; re-entrancy guard; hue preserved across achromatic round-trips (Phase 8-01)
+2. Host compositor background ownership — `HostWindow.set_bg_color()`, `paintEvent` fill, all three widgets migrated to transparent RGBA; zero visual change at default #1a1a2e (Phase 8-02)
+3. `bg_color` hot-reload pipeline — top-level config key wired through `ConfigLoader._after_reload` → `HostWindow.set_bg_color()`; `_safe_hex_color` helper in CalendarWidget for config-driven `time_color`/`date_color` (Phase 9)
+4. Pomodoro Appearance groupbox — three `ColorPickerWidget` instances replacing hex `QLineEdit` fields; full `_load_values`/`_collect_config` wiring with `.get()` defaults (Phase 10)
+5. Calendar Clock Settings groupbox — two `ColorPickerWidget` instances for `time_color` and `date_color`; 4-key dict overwrite safety (Phase 10)
+6. Layout tab Appearance groupbox — one `ColorPickerWidget` for `bg_color`; top-level config key pattern (not widget settings); closes v1.2 end-to-end (Phase 11)
+
+### What Worked
+
+- **Proving the pipeline before building the UI**: Phase 9 wired and verified the full config-to-screen hot-reload pipeline (bg_color and calendar colors) before Phase 10 added any control panel UI. When the UI was built, it just needed to write the correct keys — the pipeline was already known-good.
+- **TDD discipline on every plan**: All four implementation plans followed RED (failing tests) → GREEN (implementation) → commit cycle. The 30 tests in `test_control_panel_window.py` caught the HSL normalization behavior (ColorPickerWidget round-trips produce slightly different hex than the stored value) before it could cause assertion failures in production tests.
+- **Rebuild memory saves re-discovery time**: After Phase 10 the user confirmed the exe needed a rebuild to show changes. This was saved to memory, so the Phase 11 rebuild was automatic.
+- **Integration checker caught real issues**: The MISS-01 finding (`_update_widget_settings` docstring/behavior mismatch) was discovered only through the integration checker's source trace — not flagged by any unit test because the edge case is masked at runtime.
+
+### What Was Inefficient
+
+- **Exe rebuild not automated into the workflow**: Every code change to the control panel requires a manual `pyinstaller` rebuild. The first time this was discovered (after Phase 10 was complete), the user had already launched the old exe and was confused by unchanged UI. A post-commit hook or build script would eliminate this discovery cost.
+- **SUMMARY.md `one_liner` and `tasks` fields still empty**: Third milestone with zero accomplishments extracted by `gsd-tools summary-extract`. The milestone CLI returned `tasks: 0` and `accomplishments: []` for the same reason as v1.0 and v1.1 — the SUMMARY schema the executor writes does not match what the CLI expects.
+- **Phase 9 VERIFICATION.md stuck at `human_needed`**: Automated verification confirmed 5/5 must-haves; the `human_needed` status persisted because the hot-reload tests were never formally signed off in the VERIFICATION.md. The manual confirmation happened implicitly through Phase 10/11 testing.
+
+### Patterns Established
+
+- **Top-level config key pattern**: `bg_color` is accessed directly from `self._config` — no `_find_widget_settings()` call. Widget-scoped keys go under `widgets[N]["settings"]`; host-scoped keys go at the top level. Future phases should document which pattern applies.
+- **`set_color()` / `.color()` wiring pattern**: All color pickers initialized with `set_color(cfg.get(key, default))` in `_load_values()`; read with `.color()` in `_collect_config()`. Consistent across all 6 pickers.
+- **Fixed saturation ColorPickerWidget**: SATURATION = 0.8 is a deliberate design choice. Test assertions must use structural checks (`startswith("#")`, `len == 7`) not exact equality — the widget normalizes through HSL.
+- **Separate groupboxes for geometry vs. appearance**: Layout tab has "Display" (width/height) and "Appearance" (bg_color) as separate groupboxes. Pomodoro tab has "Durations" and "Appearance". This pattern should be followed for all future tabs.
+
+### Key Lessons
+
+1. **Add exe rebuild to the post-code-change checklist.** Any change to `control_panel/` requires `python -m PyInstaller build/control_panel.spec -y` before the user can see results. Consider a shell hook or Makefile target.
+2. **Sign off VERIFICATION.md human checks immediately after user confirms.** Phase 9's `human_needed` status lingered because the sign-off step was deferred. The executor should update VERIFICATION.md status atomically when human confirms.
+3. **Fix the SUMMARY.md schema mismatch.** Three milestones in, `gsd-tools summary-extract` has never returned a non-null `one_liner` or accurate `tasks` count. The executor's SUMMARY format and the CLI's extraction format need to be reconciled once.
+4. **Correct `_update_widget_settings` or fix the docstring.** The edge case (missing widget entry in config) is harmless now but will bite a future developer. Either implement the create path or remove the misleading docstring.
+
+### Cost Observations
+
+- Sessions: ~4 (plan + execute per phase group; Phases 10 and 11 were single sessions each)
+- Notable: v1.2 was the smoothest milestone — prior pipeline work (v1.0/v1.1) meant every Phase 8–11 change had a clear integration point. No unexpected host changes required.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Documentation Completeness
@@ -144,6 +192,7 @@
 |-----------|----------------------------|--------------------------|
 | v1.0      | 3/4                        | 0/4                      |
 | v1.1      | 3/3                        | 0/3                      |
+| v1.2      | 4/4                        | 0/4 (1/4 if Phase 5 counted) |
 
 ### Hardware Verification Coverage
 
@@ -151,3 +200,12 @@
 |-----------|--------------------------|----------------------|
 | v1.0      | 4/4                      | 3 (showFullScreen wrong monitor, WM_ACTIVATEAPP ClipCursor gap, WinRT IVectorView/None crash) |
 | v1.1      | 1/3 (Phase 7 only)       | 5 (config path mismatch, silent autostart failure, Win11 Run key ignored, display reposition on power-cycle, ClipCursor escape on focus change) |
+| v1.2      | 4/4 (human verification per phase) | 1 (stale exe — user saw old UI after Phase 10 code change, before rebuild) |
+
+### SUMMARY.md Schema Compliance
+
+| Milestone | `one_liner` populated | `requirements_completed` populated | `tasks` populated |
+|-----------|----------------------|-------------------------------------|-------------------|
+| v1.0      | ✗                    | ✗                                   | ✗                 |
+| v1.1      | ✗                    | ✗                                   | ✗                 |
+| v1.2      | ✗                    | ✓ (phases 9-11)                     | ✗                 |

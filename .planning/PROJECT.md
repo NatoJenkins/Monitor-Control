@@ -1,24 +1,13 @@
 # MonitorControl
 
-## Current Milestone: v1.2 Configurable Colors
-
-**Goal:** Replace all hardcoded colors with a user-configurable color system exposed through the control panel via a reusable hue/intensity color picker widget.
-
-**Target features:**
-- Bar background color owned by host compositor (not widgets), configurable via `bg_color`
-- Calendar text colors (`time_color`, `date_color`) configurable per-widget
-- Pomodoro accent color pickers replace existing hex QLineEdit fields
-- Reusable `ColorPickerWidget` with hue/intensity sliders, live swatch, hex input fallback
-- All defaults match current hardcoded values — zero visual change on upgrade
-
-## Previous State: v1.1 Shipped
+## Current State: v1.2 Shipped
 
 **Shipped:** 2026-03-27
-**Milestone:** v1.1 Startup & Distribution — autostart on login, standalone control panel .exe
+**Milestone:** v1.2 Configurable Colors — all bar and widget colors user-configurable from the control panel
 
 ## What This Is
 
-A modular widget framework that drives a dedicated 1920×515 secondary display (Display 3, positioned below two primary monitors) as a persistent utility bar. A host Python/PyQt6 app owns the display as a borderless always-on-top window, compositing rendered output from individual widget subprocesses that communicate via multiprocessing queues. A separate PyQt6 control panel manages widget layout and per-widget configuration via a config.json the host hot-reloads. The control panel ships as a standalone `MonitorControl.exe` (no Python required). v1.1 ships with Pomodoro timer, Calendar/Clock, and Windows notification interceptor widgets.
+A modular widget framework that drives a dedicated 1920×515 secondary display (Display 3, positioned below two primary monitors) as a persistent utility bar. A host Python/PyQt6 app owns the display as a borderless always-on-top window, compositing rendered output from individual widget subprocesses that communicate via multiprocessing queues. A separate PyQt6 control panel manages widget layout and per-widget configuration via a config.json the host hot-reloads. The control panel ships as a standalone `MonitorControl.exe` (no Python required). v1.2 ships with Pomodoro timer, Calendar/Clock, and Windows notification interceptor widgets, with all colors configurable via hue/intensity color pickers.
 
 ## Core Value
 
@@ -41,38 +30,25 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 - ✓ Config resolution is cwd-independent for all launch contexts (desktop double-click, HKCU Run key, pythonw.exe) — v1.1 (INFRA-01..02)
 - ✓ Host autostart at Windows login via Startup folder shortcut; Startup tab in control panel with immediate toggle — v1.1 (STRT-01..05)
 - ✓ Control panel packaged as standalone MonitorControl.exe (PyInstaller 6 onedir); no Python environment required — v1.1 (PKG-01..04)
+- ✓ Reusable ColorPickerWidget with hue slider (0–360), intensity slider (0–100, HSL lightness), live swatch, hex input; QColor.fromHslF — no new pip dependencies — v1.2 (CPKR-01..05)
+- ✓ Host compositor owns bar background fill; all widgets render on transparent RGBA background — v1.2 (BG-01..02)
+- ✓ bg_color top-level config key (default #1a1a2e) hot-reloads to bar background without host restart — v1.2 (BG-03)
+- ✓ Control panel Layout tab exposes bg_color via ColorPickerWidget — v1.2 (BG-04)
+- ✓ Calendar widget reads time_color (default #ffffff) and date_color (default #dcdcdc) from settings; updates live on hot-reload — v1.2 (CAL-04..05)
+- ✓ Calendar tab exposes time_color and date_color via ColorPickerWidget instances — v1.2 (CAL-06)
+- ✓ Pomodoro tab replaces three hex QLineEdit fields with ColorPickerWidget instances for accent colors — v1.2 (POMO-06)
+- ✓ All new config keys use .get() with defaults matching current hardcoded values — zero visual change on upgrade — v1.2 (CLR-01)
 
 ### Active
 
-<!-- v1.2 — Configurable Colors -->
-<!-- Color Picker Widget -->
-- [ ] ColorPickerWidget renders hue slider (0–360) and intensity slider (0–100, maps to HSL lightness) with fixed saturation at 0.8 (CPKR-01)
-- [ ] ColorPickerWidget displays a live swatch that updates as sliders are dragged (CPKR-02)
-- [ ] ColorPickerWidget shows hex field that accepts typed/pasted #RRGGBB input; valid hex moves sliders, invalid hex rejected silently (CPKR-03)
-- [ ] ColorPickerWidget emits color_changed(str) signal on any value change (CPKR-04)
-- [ ] ColorPickerWidget uses colorsys from stdlib — no new pip dependencies (CPKR-05)
-<!-- Background Color -->
-- [ ] Host compositor fills full 1920×515 with configurable background color before compositing widget frames (BG-01)
-- [ ] All three widgets render on transparent background — no longer hardcode their own bg fill (BG-02)
-- [ ] Bar background color stored as top-level `bg_color` key in config.json; default #1a1a2e matches current hardcoded value (BG-03)
-- [ ] Control panel Layout tab exposes bg_color via a ColorPickerWidget instance (BG-04)
-<!-- Calendar Colors -->
-- [ ] Calendar widget reads `time_color` from settings block; default #ffffff matches current hardcoded (CAL-04)
-- [ ] Calendar widget reads `date_color` from settings block; default #dcdcdc matches current hardcoded (CAL-05)
-- [ ] Calendar tab in control panel exposes time_color and date_color via ColorPickerWidget instances (CAL-06)
-<!-- Pomodoro Colors -->
-- [ ] Pomodoro tab replaces three hex QLineEdit fields with three ColorPickerWidget instances for accent colors (POMO-06)
-<!-- Upgrade Safety -->
-- [ ] All new config keys use .get() with defaults matching current hardcoded values — zero visual change on upgrade (CLR-01)
-
-<!-- Backlog — deferred beyond v1.2 -->
+<!-- Backlog — deferred to future milestones -->
 - [ ] Pomodoro plays an audio cue at each phase transition (PLSH-01)
 - [ ] Widget crash detection with visual placeholder and control panel restart button (PLSH-02)
 - [ ] Notification widget shows scrollable queue of multiple simultaneous toasts (PLSH-03)
 - [ ] Calendar widget seconds display toggle (PLSH-04)
 - [ ] IPC-03 spec language amendment: document deliberate `proc.terminate()` design (no drain-before-join)
 - [ ] Retroactive Phase 1 VERIFICATION.md (documentation gap from v1.0 audit)
-- [ ] Host packaging as standalone .exe (HPKG-01..03) — v1.1 packaged control panel only; host still requires Python
+- [ ] Host packaging as standalone .exe (HPKG-01..03) — host still requires a Python environment
 
 ### Out of Scope
 
@@ -88,7 +64,7 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 
 ## Context
 
-**Shipped v1.1:** ~5,141 Python LOC, 2026-03-27 (same-day as v1.0 — rapid follow-on milestone)
+**Shipped v1.2:** ~6,096 Python LOC, 2026-03-27
 
 **Tech stack:**
 - Python, PyQt6 6.10.2
@@ -105,11 +81,15 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 - Config lives at `%LOCALAPPDATA%\MonitorControl\config.json` (shared between packaged exe and Python host)
 - Notification access requires host-side `RequestAccessAsync` before widget spawn (STA apartment requirement)
 - WinRT notification polling at 2s interval (event subscription raises OSError on python.org Python — confirmed in spike)
+- ColorPickerWidget uses QColor.fromHslF with fixed SATURATION=0.8 — normalized float internal state preserves hue across achromatic round-trips
 
-**Known issues going into v1.2:**
-- `test_e2e_dummy.py::test_dummy_frame_received` fails on Windows spawn (pre-existing, not a v1.1 regression)
-- All VALIDATION.md files remain in `draft` status (Nyquist validation not completed)
-- Host packaging deferred to v2 (HPKG-*) — host still requires a Python environment
+**Known issues going into next milestone:**
+- `test_e2e_dummy.py::test_dummy_frame_received` fails on Windows spawn (pre-existing)
+- All VALIDATION.md files remain in `draft` status (Nyquist sign-off not completed)
+- Host packaging deferred to future milestone (HPKG-*) — host still requires a Python environment
+- `_update_widget_settings()` docstring claims to create missing widget entries but does not (masked in practice)
+- CalendarWidget uses `_text_color` to store `date_color` config value (naming inconsistency)
+- After any control panel source change, the PyInstaller exe must be rebuilt: `python -m PyInstaller build/control_panel.spec -y`
 
 ## Constraints
 
@@ -136,6 +116,10 @@ Keep productivity tooling off the primary monitors — widgets run persistently 
 | shell:startup shortcut for autostart (not HKCU Run key) | HKCU\Run + StartupApproved\Run is unreliable on Windows 11 — silently ignored despite correct registry state | ✓ Good — .lnk shortcut in Startup folder bypasses broken StartupApproved gate |
 | WM_DISPLAYCHANGE triggers full display re-discovery | Monitor power-cycle causes Windows to move host window; ClipCursor reapply alone is insufficient | ✓ Good — debounced re-find + reposition + reclip with 2s retry if display not yet available |
 | contents_directory='.' in PyInstaller spec | PyInstaller 6.0+ puts modules in _internal/ by default; breaks Path(__file__).parent.parent | ✓ Good — flat layout restores expected path resolution without code changes |
+| ColorPickerWidget uses QColor.fromHslF (not colorsys) | colorsys HLS argument order (H,L,S) is counterintuitive and error-prone; QColor API is already available | ✓ Good — no new pip dependency; re-entrancy guard (_updating flag) required for bidirectional slider sync |
+| bg_color as top-level config key (not widget setting) | Background color belongs to the host compositor, not any individual widget | ✓ Good — bypasses _update_widget_settings entirely; simpler load/collect wiring |
+| _after_reload wired post-construction (not constructor arg) | ConfigLoader must be bound before the lambda can close over it | ✓ Good — avoids forward-reference problem; documented in Phase 9 SUMMARY |
+| Control panel exe rebuild required after source changes | PyInstaller bakes code into binary; no hot-reload for the packaged exe | ✓ Good (operational note) — rebuild with `python -m PyInstaller build/control_panel.spec -y` |
 
 ---
-*Last updated: 2026-03-27 after v1.2 milestone start*
+*Last updated: 2026-03-27 after v1.2 milestone*
