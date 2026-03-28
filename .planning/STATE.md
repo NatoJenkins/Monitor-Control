@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Configurable Colors
 status: completed
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-27T23:50:43.927Z"
-last_activity: 2026-03-27 — 10-01 complete (ColorPickerWidget integrated into Pomodoro and Calendar tabs, POMO-06 and CAL-06 closed)
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-28T04:13:00Z"
+last_activity: 2026-03-28 — 11-01 complete (bg_color ColorPickerWidget added to Layout tab, BG-04 closed, v1.2 milestone complete)
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 5
+  completed_phases: 4
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 ## Current Position
 
-Phase: 10 — Control Panel Integration
+Phase: 11 — Layout Tab bg_color Picker
 Plan: 01 (complete)
-Status: Phase 10 complete — 1 of 1 plans done
-Last activity: 2026-03-27 — 10-01 complete (ColorPickerWidget integrated into Pomodoro and Calendar tabs, POMO-06 and CAL-06 closed)
+Status: Phase 11 complete — 1 of 1 plans done
+Last activity: 2026-03-28 — 11-01 complete (bg_color ColorPickerWidget added to Layout tab, BG-04 closed, v1.2 milestone complete)
 
 Progress: [██████████] 100%
 
@@ -56,6 +56,7 @@ Progress: [██████████] 100%
 | Phase 09 P01 | 2min | 2 tasks | 3 files |
 | Phase 09 P02 | 2 | 2 tasks | 2 files |
 | Phase 10 P01 | 3 | 2 tasks | 2 files |
+| Phase 11 P01 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Progress: [██████████] 100%
 - [Phase 09-02]: _safe_hex_color except clause must include TypeError — PIL.ImageColor.getrgb() raises TypeError on None input (calls len() on arg), not AttributeError
 - [Phase 10]: No color_changed signal wiring to save — user clicks Save, _collect_config reads .color() atomically; hot-reload handles widget update without live preview wiring
 - [Phase 10]: Calendar _collect_config dict must include all 4 keys (clock_format, font, time_color, date_color) — _update_widget_settings does full overwrite, omitting keys silently drops them on every Save
+- [Phase 11]: bg_color is a top-level config key — accessed via self._config.get("bg_color", "#1a1a2e") in _load_values, config["bg_color"] = self._bg_color_picker.color() in _collect_config; never routed through _find_widget_settings/_update_widget_settings
+- [Phase 11]: No color_changed signal wiring for bg_color — user clicks Save, _collect_config reads .color() atomically; hot-reload pipeline from Phase 9 carries bg_color to HostWindow.set_bg_color() without any additional host changes
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-27T23:50:43.923Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-28T04:13:00Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None

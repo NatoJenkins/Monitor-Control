@@ -38,7 +38,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] **Phase 8: Core Widget + Background Infrastructure** — Build ColorPickerWidget and atomically migrate host/widget background ownership (completed 2026-03-27)
 - [x] **Phase 9: Config Schema + Host Hot-Reload Wiring** — Wire bg_color and calendar color keys through config into the live bar (completed 2026-03-27)
 - [x] **Phase 10: Control Panel Integration** — Replace Pomodoro hex fields and add Calendar color pickers (completed 2026-03-27)
-- [ ] **Phase 11: Layout Tab bg_color Picker** — Expose bg_color in the control panel and close the end-to-end user flow
+- [x] **Phase 11: Layout Tab bg_color Picker** — Expose bg_color in the control panel and close the end-to-end user flow (completed 2026-03-28)
 
 ## Phase Details
 
@@ -92,7 +92,7 @@ Plans:
   1. Opening the Layout tab shows a ColorPickerWidget pre-populated with the current bg_color from config
   2. Adjusting the background color picker and clicking Save causes the bar background to change to the selected color immediately
   3. Reopening the control panel after Save shows the Layout tab picker restored to the previously saved color
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 11-01-PLAN.md — Add bg_color ColorPickerWidget to Layout tab (TDD)
 
@@ -110,7 +110,7 @@ Plans:
 | 8. Core Widget + Background Infrastructure | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 9. Config Schema + Hot-Reload Wiring | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 10. Control Panel Integration | v1.2 | 1/1 | Complete | 2026-03-27 |
-| 11. Layout Tab bg_color Picker | v1.2 | 0/1 | Not started | - |
+| 11. Layout Tab bg_color Picker | 1/1 | Complete   | 2026-03-28 | - |
 
 ---
 *Roadmap created: 2026-03-26*
