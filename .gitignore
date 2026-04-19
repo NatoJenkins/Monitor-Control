@@ -7,17 +7,14 @@ __pycache__/
 *.egg-info/
 dist/
 # PyInstaller temp artifacts (build/ contains committed spec + icon)
-build/*.manifest
-build/*.toc
-build/*.pyz
-build/*.pkg
+build/**/*.manifest
+build/**/*.toc
+build/**/*.pyz
+build/**/*.pkg
+build/**/*.exe
 build/MonitorControl/
+build/control_panel/
 build/localpycos/
-build/warn-*.txt
-build/xref-*.html
-build/Analysis-*.toc
-build/EXE-*.toc
-build/PYZ-*.toc
-build/PKG-*.toc
-build/COLLECT-*.toc
-build/base_library.zip
+build/**/warn-*.txt
+build/**/xref-*.html
+build/**/base_library.zip
